@@ -14,23 +14,26 @@ const TO_STATUS: Record<Diff, 'done' | 'skipped' | 'failed'> = {
   easy: 'done', medium: 'skipped', hard: 'failed',
 }
 
-interface Ex { id: string; name: string; sets: number; reps: string }
+interface Ex { id: string; name: string; sets: number; reps: string; has_weight: boolean }
 
 const CORE_EX: Ex[] = [
-  { id: 'prancha-lat',  name: 'Prancha lateral',             sets: 4, reps: '30s' },
-  { id: 'obliquos',     name: 'Oblíquos com halter',         sets: 3, reps: '15 cada lado' },
-  { id: 'hollow',       name: 'Hollow body hold',            sets: 4, reps: '35s' },
-  { id: 'ab-wheel',     name: 'Ab wheel',                    sets: 4, reps: '12' },
-  { id: 'prancha',      name: 'Prancha',                     sets: 3, reps: '1min' },
+  { id: 'along-antebr', name: 'Alongamento antebraço',       sets: 3, reps: '30s', has_weight: false },
+  { id: 'along-pe',     name: 'Alongamento peito do pé',     sets: 3, reps: '40s', has_weight: false },
+  { id: 'rolling-hbr',  name: 'Rolling Hollow Body Rocks',   sets: 3, reps: '10',  has_weight: false },
+  { id: 'rot-ombro',    name: 'Rotações externas ombro',     sets: 4, reps: '15',  has_weight: true  },
+  { id: 'hollow',       name: 'Hollow body hold',            sets: 4, reps: '35s', has_weight: false },
+  { id: 'obliquos',     name: 'Oblíquos com halter',         sets: 3, reps: '15',  has_weight: true  },
+  { id: 'prancha',      name: 'Prancha',                     sets: 3, reps: '1min', has_weight: false },
+  { id: 'ab-crunch',    name: 'Ab crunchs no banco',         sets: 3, reps: '15',  has_weight: true  },
 ]
 
 const MOB_EX: Ex[] = [
-  { id: 'sleeper',      name: 'Sleeper stretch',             sets: 2, reps: '40s cada lado' },
-  { id: 'wall-rot',     name: 'Wall rotation',               sets: 3, reps: '10' },
-  { id: '90-90',        name: '90/90 ancas',                 sets: 2, reps: '40s cada lado' },
-  { id: 'theraband',    name: 'Theraband rot. externas',     sets: 3, reps: '15' },
-  { id: 'arm-circles',  name: 'Rotações de braço',           sets: 2, reps: '15' },
-  { id: 'cadeia-post',  name: 'Mobilidade cadeia posterior', sets: 1, reps: '5min' },
+  { id: 'sleeper',      name: 'Sleeper stretch',             sets: 2, reps: '40s cada lado', has_weight: false },
+  { id: 'wall-rot',     name: 'Wall rotation',               sets: 3, reps: '10',            has_weight: false },
+  { id: '90-90',        name: '90/90 ancas',                 sets: 2, reps: '40s cada lado', has_weight: false },
+  { id: 'theraband',    name: 'Theraband rot. externas',     sets: 3, reps: '15',            has_weight: false },
+  { id: 'arm-circles',  name: 'Rotações de braço',           sets: 2, reps: '15',            has_weight: false },
+  { id: 'cadeia-post',  name: 'Mobilidade cadeia posterior', sets: 1, reps: '5min',          has_weight: false },
 ]
 
 export default function Core() {
