@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"\\(Get-Content src/pages/Dashboard.tsx\\) -replace 'bg-gradient-to-br', 'bg-linear-to-br' -replace 'bg-gradient-to-tl', 'bg-linear-to-tl' -replace 'bg-gradient-to-r', 'bg-linear-to-r' -replace 'bg-gradient-to-b\\\\b', 'bg-linear-to-b' | Set-Content src/pages/Dashboard.tsx\")"
+    ]
+  }
+}

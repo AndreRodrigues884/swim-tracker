@@ -9,6 +9,7 @@ import Nutricao from './pages/Nutricao'
 import Notas from './pages/Notas'
 import Estatisticas from './pages/Estatisticas'
 import Tecnica from './pages/Tecnica'
+import Treinador from './pages/Treinador'
 
 export default function App() {
   const [open, setOpen] = useState(false)
@@ -82,6 +83,7 @@ export default function App() {
               <Route path="/notas"        element={<Notas />} />
               <Route path="/estatisticas" element={<Estatisticas />} />
               <Route path="/tecnica"      element={<Tecnica />} />
+              <Route path="/treinador"    element={<Treinador />} />
             </Routes>
           </main>
 

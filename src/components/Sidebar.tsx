@@ -6,9 +6,8 @@ const links = [
   { to: '/natacao',      label: 'Natação',      icon: '🏊' },
   { to: '/core',         label: 'Core & Força', icon: '💪' },
   { to: '/nutricao',     label: 'Nutrição',     icon: '🥗' },
-  { to: '/notas',        label: 'Notas',        icon: '📝' },
   { to: '/estatisticas', label: 'Estatísticas', icon: '📈' },
-  { to: '/tecnica',      label: 'Técnica',      icon: '🎯' },
+  { to: '/treinador',    label: 'Treinador IA', icon: '🤖' },
 ]
 
 interface Props {
