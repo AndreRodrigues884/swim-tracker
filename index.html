@@ -1,12 +1,77 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt" style="background:#0d1117">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- PWA / theme -->
+    <meta name="theme-color" content="#0d1117" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- iOS PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="SwimTracker" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+
+    <!-- Icon & title -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>swim-tracker</title>
+    <title>SwimTracker</title>
+
+    <style>
+      *, *::before, *::after { box-sizing: border-box; }
+      html, body { margin: 0; background: #0d1117; }
+
+      #splash {
+        position: fixed;
+        inset: 0;
+        background: #0d1117;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        z-index: 9999;
+        opacity: 1;
+        transition: opacity 0.35s ease;
+      }
+      #splash.out { opacity: 0; pointer-events: none; }
+
+      #splash svg { display: block; }
+
+      #splash-title {
+        color: #22d3ee;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        font-weight: 700;
+        font-size: 22px;
+        letter-spacing: -0.3px;
+      }
+
+      #splash-sub {
+        color: #374151;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px;
+        margin-top: -6px;
+      }
+    </style>
   </head>
   <body>
+
+    <!-- Shown before React mounts; removed after first render -->
+    <div id="splash" aria-hidden="true">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="88" height="88">
+        <rect width="72" height="72" rx="18" fill="#111827"/>
+        <!-- wave 1 -->
+        <path d="M9 44 Q18 36 27 44 Q36 52 45 44 Q54 36 63 44"
+              fill="none" stroke="#22d3ee" stroke-width="4" stroke-linecap="round"/>
+        <!-- wave 2 -->
+        <path d="M9 30 Q18 22 27 30 Q36 38 45 30 Q54 22 63 30"
+              fill="none" stroke="#22d3ee" stroke-width="2.5" stroke-linecap="round" opacity="0.35"/>
+      </svg>
+      <div id="splash-title">SwimTracker</div>
+      <div id="splash-sub">André · 25m freestyle</div>
+    </div>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

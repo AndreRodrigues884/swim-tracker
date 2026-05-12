@@ -8,3 +8,13 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+// Fade out and remove the HTML splash screen after React's first paint
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    const splash = document.getElementById('splash')
+    if (!splash) return
+    splash.classList.add('out')
+    setTimeout(() => splash.remove(), 380)
+  })
+})

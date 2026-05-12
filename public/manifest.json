@@ -1,0 +1,18 @@
+{
+  "name": "SwimTracker — André",
+  "short_name": "SwimTracker",
+  "description": "Personal swim training tracker · 25m freestyle · objetivo 12s",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
