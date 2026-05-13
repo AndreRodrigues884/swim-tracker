@@ -58,6 +58,7 @@ const WORKOUTS: WDay[] = [
       { id: 'bjump',   name: 'Broad jump',               sets: 6, reps: '5',  has_weight: false },
       { id: 'bulg',    name: 'Bulgarian split squat',    sets: 4, reps: '10', has_weight: true  },
       { id: 'calfs',   name: 'Calf raises curl bar',     sets: 4, reps: '20', has_weight: true  },
+      { id: 'hip-thr', name: 'Hip thrust',               sets: 4, reps: '15', has_weight: true  },
     ],
   },
   {

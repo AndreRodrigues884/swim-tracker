@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 type Diff = 'easy' | 'medium' | 'hard'
-type Tab = 'core' | 'mobilidade'
 
 const D: Record<Diff, { label: string; short: string; cls: string }> = {
   easy:   { label: 'Fácil',   short: 'F', cls: 'bg-green-500/20  text-green-400  border-green-500/30' },
@@ -17,34 +16,24 @@ const TO_STATUS: Record<Diff, 'done' | 'skipped' | 'failed'> = {
 interface Ex { id: string; name: string; sets: number; reps: string; has_weight: boolean }
 
 const CORE_EX: Ex[] = [
-  { id: 'along-antebr', name: 'Alongamento antebraço',       sets: 3, reps: '30s', has_weight: false },
-  { id: 'along-pe',     name: 'Alongamento peito do pé',     sets: 3, reps: '40s', has_weight: false },
-  { id: 'rolling-hbr',  name: 'Rolling Hollow Body Rocks',   sets: 3, reps: '10',  has_weight: false },
-  { id: 'rot-ombro',    name: 'Rotações externas ombro',     sets: 4, reps: '15',  has_weight: true  },
-  { id: 'hollow',       name: 'Hollow body hold',            sets: 4, reps: '35s', has_weight: false },
-  { id: 'obliquos',     name: 'Oblíquos com halter',         sets: 3, reps: '15',  has_weight: true  },
+  { id: 'along-antebr', name: 'Alongamento antebraço',       sets: 3, reps: '30s',  has_weight: false },
+  { id: 'along-pe',     name: 'Alongamento peito do pé',     sets: 3, reps: '40s',  has_weight: false },
+  { id: 'rolling-hbr',  name: 'Rolling Hollow Body Rocks',   sets: 3, reps: '10',   has_weight: false },
+  { id: 'rot-ombro',    name: 'Rotações externas ombro',     sets: 4, reps: '15',   has_weight: true  },
+  { id: 'hollow',       name: 'Hollow body hold',            sets: 4, reps: '35s',  has_weight: true  },
+  { id: 'obliquos',     name: 'Oblíquos com halter',         sets: 3, reps: '15',   has_weight: true  },
   { id: 'prancha',      name: 'Prancha',                     sets: 3, reps: '1min', has_weight: false },
-  { id: 'ab-crunch',    name: 'Ab crunchs no banco',         sets: 3, reps: '15',  has_weight: true  },
-]
-
-const MOB_EX: Ex[] = [
-  { id: 'sleeper',      name: 'Sleeper stretch',             sets: 2, reps: '40s cada lado', has_weight: false },
-  { id: 'wall-rot',     name: 'Wall rotation',               sets: 3, reps: '10',            has_weight: false },
-  { id: '90-90',        name: '90/90 ancas',                 sets: 2, reps: '40s cada lado', has_weight: false },
-  { id: 'theraband',    name: 'Theraband rot. externas',     sets: 3, reps: '15',            has_weight: false },
-  { id: 'arm-circles',  name: 'Rotações de braço',           sets: 2, reps: '15',            has_weight: false },
-  { id: 'cadeia-post',  name: 'Mobilidade cadeia posterior', sets: 1, reps: '5min',          has_weight: false },
+  { id: 'ab-crunch',    name: 'Ab crunchs no banco',         sets: 3, reps: '15',   has_weight: true  },
 ]
 
 export default function Core() {
-  const [tab, setTab]             = useState<Tab>('core')
-  const [sets, setSets]           = useState<Record<string, Diff>>({})
-  const [saving, setSaving]       = useState(false)
-  const [saved, setSaved]         = useState(false)
-  const [error, setError]         = useState<string | null>(null)
+  const [sets,    setSets]    = useState<Record<string, Diff>>({})
+  const [weights, setWeights] = useState<Record<string, string>>({})
+  const [saving,  setSaving]  = useState(false)
+  const [saved,   setSaved]   = useState(false)
+  const [error,   setError]   = useState<string | null>(null)
 
-  const exercises = tab === 'core' ? CORE_EX : MOB_EX
-  const totalSets = exercises.reduce((s, e) => s + e.sets, 0)
+  const totalSets = CORE_EX.reduce((s, e) => s + e.sets, 0)
   const doneSets  = Object.keys(sets).length
 
   function cycleSet(key: string) {
@@ -66,8 +55,8 @@ export default function Core() {
     const { data: session, error: sErr } = await supabase
       .from('workout_sessions')
       .insert({
-        date: new Date().toISOString().split('T')[0],
-        day_type: tab,
+        date:      new Date().toISOString().split('T')[0],
+        day_type:  'core',
         difficulty: 5,
       })
       .select()
@@ -92,7 +81,16 @@ export default function Core() {
       await supabase.from('set_logs').insert(logs)
     }
 
+    const today = new Date().toISOString().split('T')[0]
+    const progressions = CORE_EX
+      .filter(ex => ex.has_weight && weights[ex.id] && parseFloat(weights[ex.id]) > 0)
+      .map(ex => ({ date: today, exercise: ex.name, load_kg: parseFloat(weights[ex.id]) }))
+    if (progressions.length > 0) {
+      await supabase.from('progressions').insert(progressions)
+    }
+
     setSets({})
+    setWeights({})
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
@@ -103,7 +101,7 @@ export default function Core() {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-white">Core & Mobilidade</h1>
+          <h1 className="text-2xl font-bold text-white">Core</h1>
           <p className="text-gray-400 text-sm mt-1">
             {doneSets}/{totalSets} séries marcadas
           </p>
@@ -117,29 +115,9 @@ export default function Core() {
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2">
-        {(['core', 'mobilidade'] as Tab[]).map(t => (
-          <button
-            key={t}
-            onClick={() => { setTab(t); setSets({}) }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors cursor-pointer ${
-              tab === t
-                ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25'
-                : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'
-            }`}
-          >
-            {t === 'core' ? 'Core' : 'Mobilidade'}
-            <span className="ml-2 text-xs opacity-50">
-              {t === 'core' ? 'Qua + Qui' : 'Diária · 15min'}
-            </span>
-          </button>
-        ))}
-      </div>
-
       {/* Exercises */}
       <div className="space-y-3">
-        {exercises.map(ex => {
+        {CORE_EX.map(ex => {
           const keys      = Array.from({ length: ex.sets }, (_, i) => `${ex.id}|||${i}`)
           const doneCount = keys.filter(k => sets[k]).length
           return (
@@ -151,7 +129,23 @@ export default function Core() {
                     {ex.sets} séries × {ex.reps}
                   </p>
                 </div>
-                <span className="text-gray-600 text-xs font-mono">{doneCount}/{ex.sets}</span>
+                <div className="flex items-center gap-3">
+                  {ex.has_weight && (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        placeholder="0"
+                        value={weights[ex.id] ?? ''}
+                        onChange={e => setWeights(prev => ({ ...prev, [ex.id]: e.target.value }))}
+                        className="w-16 bg-gray-800 border border-gray-700 text-white font-mono text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-cyan-500 transition-colors text-center"
+                      />
+                      <span className="text-gray-500 text-xs">kg</span>
+                    </div>
+                  )}
+                  <span className="text-gray-600 text-xs font-mono">{doneCount}/{ex.sets}</span>
+                </div>
               </div>
               <div className="flex gap-2 flex-wrap">
                 {keys.map((key, i) => {
