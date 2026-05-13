@@ -1,4 +1,8 @@
 import { useState, useEffect } from 'react'
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, ReferenceLine,
+} from 'recharts'
 import { supabase } from '../lib/supabase'
 
 type Diff     = 'easy' | 'medium' | 'hard'
@@ -27,8 +31,10 @@ const EXEC_OPTS: { value: ExecType; label: string }[] = [
   { value: 'rest_pause', label: 'Rest-pause' },
 ]
 
-interface Ex   { id: string; name: string; sets: number; reps: string; has_weight: boolean }
-interface WDay { key: string; label: string; days: string; exercises: Ex[] }
+interface Ex        { id: string; name: string; sets: number; reps: string; has_weight: boolean }
+interface WDay      { key: string; label: string; days: string; exercises: Ex[] }
+interface LastEntry { weight: string | null; reps: string | null }
+interface ChartPt   { date: string; vol: number }
 
 const WORKOUTS: WDay[] = [
   {
@@ -84,8 +90,8 @@ export default function Treino() {
   const [setData,      setSetData]      = useState<Record<string, SetEntry>>({})
   const [expandedKey,  setExpandedKey]  = useState<string | null>(null)
   const [draft,        setDraft]        = useState<Partial<SetEntry>>({})
-  const [sessionDiff,  setSessionDiff]  = useState(5)
-  const [lastWeights,  setLastWeights]  = useState<Record<string, number | null>>({})
+  const [lastSetData,  setLastSetData]  = useState<Record<string, LastEntry>>({})
+  const [chartData,    setChartData]    = useState<ChartPt[]>([])
   const [saving,       setSaving]       = useState(false)
   const [saved,        setSaved]        = useState(false)
   const [error,        setError]        = useState<string | null>(null)
@@ -94,39 +100,87 @@ export default function Treino() {
   const doneSets  = Object.keys(setData).length
   const totalSets = workout.exercises.reduce((s, e) => s + e.sets, 0)
 
-  // Fetch last recorded weight for each exercise in the current workout
+  // Fetch last weight (from progressions) + last reps (from most recent session's set_logs)
   useEffect(() => {
-    const names = workout.exercises.map(e => e.name)
-    const init: Record<string, number | null> = {}
-    workout.exercises.forEach(e => { init[e.id] = null })
-    setLastWeights(init)
+    setLastSetData({})
+    const exIds = workout.exercises.map(e => e.id)
 
-    supabase
-      .from('progressions')
-      .select('exercise, load_kg, date')
-      .in('exercise', names)
-      .order('date', { ascending: false })
-      .then(({ data }) => {
-        if (!data) return
-        const map = { ...init }
-        for (const row of data) {
-          const ex = workout.exercises.find(e => e.name === row.exercise)
-          if (ex && map[ex.id] === null) map[ex.id] = row.load_kg
+    async function load() {
+      const { data: sessions } = await supabase
+        .from('workout_sessions')
+        .select('id')
+        .eq('day_type', workout.key)
+        .order('date', { ascending: false })
+        .limit(1)
+
+      if (!sessions?.length) return
+
+      const { data: logs } = await supabase
+        .from('set_logs')
+        .select('exercise_id, set_number, weight_kg, reps_done')
+        .eq('session_id', sessions[0].id)
+
+      if (!logs) return
+
+      const map: Record<string, LastEntry> = {}
+      for (const log of logs) {
+        if (!exIds.includes(log.exercise_id)) continue
+        // key matches the app's format: exerciseId|||setIndex (0-based)
+        const key = `${log.exercise_id}|||${log.set_number - 1}`
+        map[key] = {
+          weight: log.weight_kg != null ? String(log.weight_kg) : null,
+          reps:   log.reps_done  != null ? String(log.reps_done)  : null,
         }
-        setLastWeights(map)
-      })
+      }
+      setLastSetData(map)
+    }
+
+    load()
   }, [activeIdx])
 
-  function openSet(key: string, plannedReps: string) {
+  function openSet(key: string) {
     if (expandedKey === key) { setExpandedKey(null); return }
     const existing = setData[key]
     setDraft(
       existing
         ? { ...existing }
-        : { diff: 'easy', weight: '', reps: plannedReps, execType: 'continuous' }
+        : { diff: 'easy', weight: '', reps: '', execType: 'continuous' }
     )
     setExpandedKey(key)
   }
+
+  useEffect(() => {
+    setChartData([])
+    async function loadChart() {
+      const names = workout.exercises.filter(e => e.has_weight).map(e => e.name)
+      if (!names.length) return
+
+      const { data: progs } = await supabase
+        .from('progressions')
+        .select('date, load_kg')
+        .in('exercise', names)
+        .order('date', { ascending: true })
+
+      if (!progs?.length) return
+
+      // sum max loads per date → total session load
+      const dateMap: Record<string, number> = {}
+      for (const p of progs) {
+        dateMap[p.date] = (dateMap[p.date] ?? 0) + p.load_kg
+      }
+
+      const pts = Object.entries(dateMap)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .slice(-20)
+        .map(([d, total]) => ({
+          date: new Date(d + 'T00:00:00').toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' }),
+          vol:  Math.round(total),
+        }))
+
+      setChartData(pts)
+    }
+    loadChart()
+  }, [activeIdx])
 
   function confirmSet(key: string) {
     if (!draft.diff) return
@@ -150,7 +204,7 @@ export default function Treino() {
 
     const { data: session, error: sErr } = await supabase
       .from('workout_sessions')
-      .insert({ date: today, day_type: workout.key, difficulty: sessionDiff })
+      .insert({ date: today, day_type: workout.key, difficulty: 5 })
       .select()
       .single()
 
@@ -233,39 +287,74 @@ export default function Treino() {
         ))}
       </div>
 
-      {/* Session difficulty */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4 flex-wrap">
-        <span className="text-gray-400 text-sm shrink-0">Dificuldade da sessão:</span>
-        <div className="flex gap-1.5 flex-wrap">
-          {Array.from({ length: 10 }, (_, i) => i + 1).map(d => (
-            <button
-              key={d}
-              onClick={() => setSessionDiff(d)}
-              className={`w-7 h-7 rounded text-xs font-bold border transition-colors cursor-pointer ${
-                d === sessionDiff
-                  ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40'
-                  : d < sessionDiff
-                  ? 'bg-cyan-500/5 text-cyan-800 border-gray-700'
-                  : 'bg-gray-800 text-gray-600 border-gray-700 hover:text-gray-400'
-              }`}
-            >
-              {d}
-            </button>
-          ))}
-        </div>
-        <span className="text-gray-500 text-xs">
-          {sessionDiff <= 3 ? 'Fácil' : sessionDiff <= 6 ? 'Moderado' : sessionDiff <= 8 ? 'Difícil' : 'Extremo'}
-        </span>
-      </div>
+      {/* Progress chart */}
+      {(() => {
+        if (chartData.length < 2) return (
+          <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-5 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center shrink-0">
+              <svg viewBox="0 0 16 16" className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <polyline points="1,12 5,7 8,9 12,4 15,6" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div>
+              <p className="text-gray-400 text-sm font-medium">Progresso — {workout.label}</p>
+              <p className="text-gray-600 text-xs mt-0.5">
+                {chartData.length === 0
+                  ? 'Regista treinos com peso para ver a evolução'
+                  : 'Falta 1 sessão para ver o gráfico'}
+              </p>
+            </div>
+          </div>
+        )
+        const vols   = chartData.map(p => p.vol)
+        const minVol = Math.min(...vols)
+        const maxVol = Math.max(...vols)
+        const delta  = vols[vols.length - 1] - vols[vols.length - 2]
+        const trend  = delta > 0 ? { label: '↑ A subir', cls: 'text-green-400' }
+                     : delta < 0 ? { label: '↓ A descer', cls: 'text-red-400' }
+                     :             { label: '→ Estável',  cls: 'text-yellow-400' }
+        return (
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <p className="text-white text-sm font-semibold">Progresso — {workout.label}</p>
+                <p className="text-gray-600 text-xs mt-0.5">Carga total por sessão (kg) · {chartData.length} sessões</p>
+              </div>
+              <span className={`text-xs font-semibold ${trend.cls}`}>{trend.label}</span>
+            </div>
+            <ResponsiveContainer width="100%" height={130}>
+              <LineChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+                <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis
+                  tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} width={42}
+                  domain={[Math.floor(minVol * 0.9), Math.ceil(maxVol * 1.05)]}
+                  tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v)}
+                />
+                <ReferenceLine y={vols[vols.length - 1]} stroke="#22d3ee" strokeDasharray="4 3" strokeOpacity={0.25} />
+                <Tooltip
+                  contentStyle={{ background: '#0d1117', border: '1px solid #1f2937', borderRadius: 8, fontSize: 12 }}
+                  labelStyle={{ color: '#6b7280' }}
+                  formatter={(v) => [`${Number(v).toLocaleString('pt-PT')} kg`, 'Carga']}
+                />
+                <Line type="monotone" dataKey="vol" stroke="#22d3ee" strokeWidth={2}
+                  dot={{ fill: '#22d3ee', r: 3, strokeWidth: 0 }}
+                  activeDot={{ r: 5, strokeWidth: 0 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )
+      })()}
 
       {/* Exercises */}
       <div className="space-y-3">
         {workout.exercises.map(ex => {
           const keys      = Array.from({ length: ex.sets }, (_, i) => `${ex.id}|||${i}`)
           const doneCount = keys.filter(k => setData[k]).length
-          const lastW     = lastWeights[ex.id]
-          const formKey   = expandedKey && keys.includes(expandedKey) ? expandedKey : null
+          const formKey    = expandedKey && keys.includes(expandedKey) ? expandedKey : null
           const formSetIdx = formKey ? parseInt(formKey.split('|||')[1]) + 1 : null
+          const lastForSet = formKey ? lastSetData[formKey] : null
 
           return (
             <div key={ex.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
@@ -276,10 +365,6 @@ export default function Treino() {
               </div>
               <div className="flex items-center gap-2 mb-3 text-xs">
                 <span className="text-gray-500">{ex.sets} × {ex.reps} reps</span>
-                <span className="text-gray-700">·</span>
-                <span className={lastW !== null ? 'text-cyan-700' : 'text-gray-700'}>
-                  {lastW !== null ? `Última vez: ${lastW}kg` : 'Sem registo'}
-                </span>
               </div>
 
               {/* Set buttons */}
@@ -294,7 +379,7 @@ export default function Treino() {
                   return (
                     <button
                       key={key}
-                      onClick={() => openSet(key, ex.reps)}
+                      onClick={() => openSet(key)}
                       className={`h-10 px-2.5 min-w-10 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
                         isOpen
                           ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/40 ring-1 ring-cyan-500/20'
@@ -312,20 +397,28 @@ export default function Treino() {
               {/* Inline form — expands below the set row */}
               {formKey && (
                 <div className="mt-3 pt-3 border-t border-gray-700/50">
-                  <p className="text-gray-500 text-xs mb-3 font-medium">
-                    Série {formSetIdx}
-                  </p>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-gray-500 text-xs font-medium">Série {formSetIdx}</p>
+                    {lastForSet && (
+                      <p className="text-cyan-700 text-xs">
+                        Última vez:
+                        {lastForSet.weight && ` ${lastForSet.weight}kg`}
+                        {lastForSet.weight && lastForSet.reps && ' ·'}
+                        {lastForSet.reps && ` ${lastForSet.reps} reps`}
+                      </p>
+                    )}
+                  </div>
 
                   {/* Weight + Reps */}
                   <div className="flex gap-3 mb-3">
                     {ex.has_weight && (
                       <div className="flex-1">
-                        <label className="text-gray-500 text-xs block mb-1">Peso (kg) — opcional</label>
+                        <label className="text-gray-500 text-xs block mb-1">Peso (kg)</label>
                         <input
                           type="number"
                           step="0.5"
                           min="0"
-                          placeholder="—"
+                          placeholder={lastForSet?.weight ?? '—'}
                           value={draft.weight ?? ''}
                           onChange={e => setDraft(d => ({ ...d, weight: e.target.value }))}
                           className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-cyan-500 transition-colors"
@@ -337,7 +430,7 @@ export default function Treino() {
                       <input
                         type="number"
                         min="0"
-                        placeholder={ex.reps}
+                        placeholder={lastForSet?.reps ?? ex.reps}
                         value={draft.reps ?? ''}
                         onChange={e => setDraft(d => ({ ...d, reps: e.target.value }))}
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-cyan-500 transition-colors"

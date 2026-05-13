@@ -5,10 +5,9 @@ import {
 } from 'recharts'
 import { supabase } from '../lib/supabase'
 
-interface SwimTime    { date: string; time_seconds: number }
-interface Progression { date: string; exercise: string; load_kg: number }
-interface Session     { date: string }
-interface WeightLog   { date: string; weight_kg: number }
+interface SwimTime  { date: string; time_seconds: number }
+interface Session   { date: string }
+interface WeightLog { date: string; weight_kg: number }
 
 function getMondayKey(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00')
@@ -31,39 +30,22 @@ const tooltipStyle = {
 
 export default function Estatisticas() {
   const [swimTimes,    setSwimTimes]    = useState<SwimTime[]>([])
-  const [progressions, setProgressions] = useState<Progression[]>([])
   const [sessions,     setSessions]     = useState<Session[]>([])
   const [weightLogs,   setWeightLogs]   = useState<WeightLog[]>([])
-  const [selectedEx,   setSelectedEx]   = useState('')
 
   useEffect(() => {
     Promise.all([
       supabase.from('swim_times').select('date, time_seconds').order('date'),
-      supabase.from('progressions').select('date, exercise, load_kg').order('date'),
       supabase.from('workout_sessions').select('date').order('date'),
       supabase.from('weight_logs').select('date, weight_kg').order('date'),
-    ]).then(([swim, prog, sess, wt]) => {
+    ]).then(([swim, sess, wt]) => {
       if (swim.data) setSwimTimes(swim.data)
-      if (prog.data) {
-        setProgressions(prog.data)
-        if (prog.data.length > 0) setSelectedEx(prog.data[0].exercise)
-      }
       if (sess.data) setSessions(sess.data)
       if (wt.data)   setWeightLogs(wt.data)
     })
   }, [])
 
-  const exercises = [...new Set(progressions.map(p => p.exercise))].sort()
-
   const swimChartData = swimTimes.map(t => ({ date: t.date.slice(5), time: t.time_seconds }))
-
-  const progChartData = progressions
-    .filter(p => p.exercise === selectedEx)
-    .map(p => ({ date: p.date.slice(5), load: p.load_kg }))
-
-  const firstLoad  = progChartData.at(0)?.load  ?? null
-  const latestLoad = progChartData.at(-1)?.load ?? null
-  const loadGain   = firstLoad !== null && latestLoad !== null ? latestLoad - firstLoad : null
 
   const weekMap: Record<string, number> = {}
   for (const s of sessions) {
@@ -186,75 +168,6 @@ export default function Estatisticas() {
                 strokeWidth={2.5}
                 dot={{ fill: '#a78bfa', r: 4, strokeWidth: 0 }}
                 activeDot={{ r: 6, fill: '#c4b5fd' }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
-      {/* ── Load progression ───────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-          <h2 className="text-white font-semibold">Evolução de carga</h2>
-          {exercises.length > 0 && (
-            <select
-              value={selectedEx}
-              onChange={e => setSelectedEx(e.target.value)}
-              className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-cyan-500 max-w-xs"
-            >
-              {exercises.map(ex => <option key={ex} value={ex}>{ex}</option>)}
-            </select>
-          )}
-        </div>
-
-        {progChartData.length > 0 && (
-          <div className="grid grid-cols-3 gap-3 mb-5">
-            <StatCard label="Carga inicial" value={`${firstLoad}kg`} />
-            <StatCard label="Carga atual"   value={`${latestLoad}kg`} accent />
-            <StatCard
-              label="Ganho total"
-              value={loadGain !== null ? `${loadGain >= 0 ? '+' : ''}${loadGain.toFixed(1)}kg` : '—'}
-              positive={loadGain !== null && loadGain > 0}
-            />
-          </div>
-        )}
-
-        {progChartData.length === 0 ? (
-          <Empty
-            h={48}
-            label={
-              exercises.length === 0
-                ? 'As progressões são guardadas automaticamente ao terminar um treino'
-                : 'Sem dados para este exercício'
-            }
-          />
-        ) : (
-          <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={progChartData} margin={{ top: 5, right: 24, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#111827" />
-              <XAxis dataKey="date" tick={{ fill: '#4b5563', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis
-                domain={[
-                  (dMin: number) => Math.max(0, dMin - 2),
-                  (dMax: number) => dMax + 2,
-                ]}
-                tick={{ fill: '#4b5563', fontSize: 11 }}
-                tickFormatter={v => `${v}kg`}
-                width={50}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                {...tooltipStyle}
-                formatter={(v: unknown) => [`${v}kg`, 'Carga']}
-              />
-              <Line
-                type="monotone"
-                dataKey="load"
-                stroke="#f59e0b"
-                strokeWidth={2.5}
-                dot={{ fill: '#f59e0b', r: 4, strokeWidth: 0 }}
-                activeDot={{ r: 6, fill: '#fcd34d' }}
               />
             </LineChart>
           </ResponsiveContainer>
