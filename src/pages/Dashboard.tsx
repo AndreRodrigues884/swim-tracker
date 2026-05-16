@@ -28,10 +28,6 @@ export default function Dashboard() {
   const [bestTime,          setBestTime]          = useState<number | null>(null)
   const [latestTime,        setLatestTime]         = useState<number | null>(null)
   const [sessionsThisMonth, setSessionsThisMonth]  = useState(0)
-  const [weight,            setWeight]             = useState<number>(93.0)
-  const [editingWeight,     setEditingWeight]      = useState(false)
-  const [weightInput,       setWeightInput]        = useState('')
-  const [savingWeight,      setSavingWeight]       = useState(false)
   const [loading,           setLoading]            = useState(true)
 
   useEffect(() => {
@@ -42,34 +38,18 @@ export default function Dashboard() {
       supabase.from('swim_times').select('time_seconds').order('time_seconds', { ascending: true }).limit(1),
       supabase.from('swim_times').select('time_seconds').order('date', { ascending: false }).limit(1),
       supabase.from('workout_sessions').select('id', { count: 'exact', head: true }).gte('date', monthStr),
-      supabase.from('weight_logs').select('weight_kg').order('date', { ascending: false }).limit(1),
-    ]).then(([best, latest, sessions, wt]) => {
+    ]).then(([best, latest, sessions]) => {
       if (best.data?.[0])   setBestTime(best.data[0].time_seconds)
       if (latest.data?.[0]) setLatestTime(latest.data[0].time_seconds)
       setSessionsThisMonth(sessions.count ?? 0)
-      if (wt.data?.[0])     setWeight(wt.data[0].weight_kg)
       setLoading(false)
     })
   }, [])
-
-  async function saveWeight() {
-    const w = parseFloat(weightInput)
-    if (isNaN(w) || w < 40 || w > 200) return
-    setSavingWeight(true)
-    await supabase.from('weight_logs').insert({
-      date:      new Date().toISOString().split('T')[0],
-      weight_kg: w,
-    })
-    setWeight(w)
-    setEditingWeight(false)
-    setSavingWeight(false)
-  }
 
   const displayTime = bestTime ?? START
   const progress    = Math.min(100, Math.max(0, ((START - displayTime) / (START - GOAL)) * 100))
   const gap         = displayTime - GOAL
   const improved    = bestTime ? START - bestTime : 0
-  const bmi         = weight / (1.96 * 1.96)
 
   const today    = WEEKLY_PLAN[todayIdx]
   const tomorrow = WEEKLY_PLAN[(todayIdx + 1) % 7]
@@ -236,55 +216,6 @@ export default function Dashboard() {
               <div className="flex justify-between items-baseline">
                 <span className="text-gray-500 text-sm">Altura</span>
                 <span className="text-white font-mono text-sm font-semibold">196 cm</span>
-              </div>
-
-              {/* Editable weight */}
-              <div className="flex justify-between items-center">
-                <span className="text-gray-500 text-sm">Peso</span>
-                {editingWeight ? (
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      autoFocus
-                      type="number"
-                      step="0.1" min="40" max="200"
-                      value={weightInput}
-                      onChange={e => setWeightInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') saveWeight(); if (e.key === 'Escape') setEditingWeight(false) }}
-                      className="w-16 bg-gray-800 border border-gray-600 text-white text-sm font-mono rounded-lg px-2 py-0.5 focus:outline-none focus:border-cyan-500 transition-colors"
-                    />
-                    <span className="text-gray-500 text-xs">kg</span>
-                    <button
-                      onClick={saveWeight}
-                      disabled={savingWeight}
-                      className="text-cyan-400 hover:text-cyan-300 text-sm leading-none cursor-pointer"
-                    >✓</button>
-                    <button
-                      onClick={() => setEditingWeight(false)}
-                      className="text-gray-600 hover:text-white text-sm leading-none cursor-pointer"
-                    >✕</button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-white font-mono text-sm font-semibold">{weight.toFixed(1)} kg</span>
-                    <button
-                      onClick={() => { setWeightInput(weight.toFixed(1)); setEditingWeight(true) }}
-                      className="text-gray-600 hover:text-gray-400 transition-colors cursor-pointer"
-                      title="Editar peso"
-                    >
-                      <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M12.854.146a.5.5 0 0 0-.707 0L10.5 1.793 14.207 5.5l1.647-1.646a.5.5 0 0 0 0-.708l-3-3zm.646 6.061L9.793 2.5 3.293 9H3.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.207l6.5-6.5zm-7.468 7.468A.5.5 0 0 1 6 13.5V13h-.5a.5.5 0 0 1-.5-.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.5-.5V10.5H3a.5.5 0 0 1-.46-.302l-.761 2.835c-.046.173-.009.35.102.463.11.113.29.149.462.102l2.835-.762z"/>
-                      </svg>
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-between items-baseline">
-                <span className="text-gray-500 text-sm">IMC</span>
-                <span className="text-white font-mono text-sm font-semibold">
-                  {bmi.toFixed(1)}
-                  <span className="text-green-400 text-xs font-normal ml-1.5">Normal</span>
-                </span>
               </div>
               <div className="flex justify-between items-baseline">
                 <span className="text-gray-500 text-sm">Idade</span>

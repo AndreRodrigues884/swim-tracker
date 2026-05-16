@@ -31,10 +31,12 @@ const EXEC_OPTS: { value: ExecType; label: string }[] = [
   { value: 'rest_pause', label: 'Rest-pause' },
 ]
 
-interface Ex        { id: string; name: string; sets: number; reps: string; has_weight: boolean }
-interface WDay      { key: string; label: string; days: string; exercises: Ex[] }
-interface LastEntry { weight: string | null; reps: string | null }
-interface ChartPt   { date: string; vol: number }
+interface Ex           { id: string; name: string; sets: number; reps: string; has_weight: boolean }
+interface ChartGroup   { label: string; exerciseIds: string[] }
+interface GroupedChart { label: string; pts: ChartPt[] }
+interface WDay         { key: string; label: string; days: string; exercises: Ex[]; chartGroups?: ChartGroup[] }
+interface LastEntry    { weight: string | null; reps: string | null }
+interface ChartPt      { date: string; vol: number }
 
 const WORKOUTS: WDay[] = [
   {
@@ -45,6 +47,10 @@ const WORKOUTS: WDay[] = [
       { id: 'cu-w',    name: 'Chin-ups com peso',        sets: 3, reps: '8',  has_weight: true  },
       { id: 'dips-w',  name: 'Dips com peso',            sets: 6, reps: '5',  has_weight: true  },
       { id: 'dips-n',  name: 'Dips normais',              sets: 4, reps: '12', has_weight: true  },
+    ],
+    chartGroups: [
+      { label: 'Costas', exerciseIds: ['pu-w', 'pu-n', 'cu-w']  },
+      { label: 'Dips',   exerciseIds: ['dips-w', 'dips-n']      },
     ],
   },
   {
@@ -79,6 +85,10 @@ const WORKOUTS: WDay[] = [
       { id: 'wrist',    name: 'Wrist curls curl bar',     sets: 4, reps: '15', has_weight: true  },
       { id: 'rev-wrist',name: 'Reverse wrist curls',      sets: 3, reps: '15', has_weight: true  },
     ],
+    chartGroups: [
+      { label: 'Bíceps',  exerciseIds: ['bb-curl', 'hammer', 'conc']  },
+      { label: 'Tríceps', exerciseIds: ['skull', 'tri-ext', 'kick']   },
+    ],
   },
 ]
 
@@ -91,7 +101,7 @@ export default function Treino() {
   const [expandedKey,  setExpandedKey]  = useState<string | null>(null)
   const [draft,        setDraft]        = useState<Partial<SetEntry>>({})
   const [lastSetData,  setLastSetData]  = useState<Record<string, LastEntry>>({})
-  const [chartData,    setChartData]    = useState<ChartPt[]>([])
+  const [chartGroups,  setChartGroups]  = useState<GroupedChart[]>([])
   const [saving,       setSaving]       = useState(false)
   const [saved,        setSaved]        = useState(false)
   const [error,        setError]        = useState<string | null>(null)
@@ -150,34 +160,51 @@ export default function Treino() {
   }
 
   useEffect(() => {
-    setChartData([])
+    const groups: ChartGroup[] = workout.chartGroups
+      ?? [{ label: workout.label, exerciseIds: workout.exercises.filter(e => e.has_weight).map(e => e.id) }]
+    setChartGroups(groups.map(g => ({ label: g.label, pts: [] })))
+
     async function loadChart() {
-      const names = workout.exercises.filter(e => e.has_weight).map(e => e.name)
-      if (!names.length) return
+      const allExIds = groups.flatMap(g => g.exerciseIds)
+      if (!allExIds.length) return
 
-      const { data: progs } = await supabase
-        .from('progressions')
-        .select('date, load_kg')
-        .in('exercise', names)
-        .order('date', { ascending: true })
+      const [{ data: sessions }, { data: logs }] = await Promise.all([
+        supabase
+          .from('workout_sessions')
+          .select('id, date')
+          .eq('day_type', workout.key)
+          .order('date', { ascending: true }),
+        supabase
+          .from('set_logs')
+          .select('exercise_id, weight_kg, reps_done, session_id')
+          .in('exercise_id', allExIds)
+          .gt('weight_kg', 0)
+          .gt('reps_done', 0),
+      ])
 
-      if (!progs?.length) return
+      if (!sessions?.length || !logs?.length) return
 
-      // sum max loads per date → total session load
-      const dateMap: Record<string, number> = {}
-      for (const p of progs) {
-        dateMap[p.date] = (dateMap[p.date] ?? 0) + p.load_kg
-      }
+      const sesMap: Record<string, string> = {}
+      for (const s of sessions) sesMap[s.id] = s.date
 
-      const pts = Object.entries(dateMap)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .slice(-20)
-        .map(([d, total]) => ({
-          date: new Date(d + 'T00:00:00').toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' }),
-          vol:  Math.round(total),
-        }))
-
-      setChartData(pts)
+      setChartGroups(groups.map(g => {
+        const groupExIds = new Set(g.exerciseIds)
+        const dateMap: Record<string, number> = {}
+        for (const log of logs) {
+          if (!groupExIds.has(log.exercise_id)) continue
+          const date = sesMap[log.session_id]
+          if (!date) continue
+          dateMap[date] = (dateMap[date] ?? 0) + (log.weight_kg ?? 0) * (log.reps_done ?? 0)
+        }
+        const pts = Object.entries(dateMap)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .slice(-20)
+          .map(([d, total]) => ({
+            date: new Date(d + 'T00:00:00').toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' }),
+            vol:  Math.round(total),
+          }))
+        return { label: g.label, pts }
+      }))
     }
     loadChart()
   }, [activeIdx])
@@ -287,65 +314,67 @@ export default function Treino() {
         ))}
       </div>
 
-      {/* Progress chart */}
-      {(() => {
-        if (chartData.length < 2) return (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-5 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center shrink-0">
-              <svg viewBox="0 0 16 16" className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <polyline points="1,12 5,7 8,9 12,4 15,6" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            <div>
-              <p className="text-gray-400 text-sm font-medium">Progresso — {workout.label}</p>
-              <p className="text-gray-600 text-xs mt-0.5">
-                {chartData.length === 0
-                  ? 'Regista treinos com peso para ver a evolução'
-                  : 'Falta 1 sessão para ver o gráfico'}
-              </p>
-            </div>
-          </div>
-        )
-        const vols   = chartData.map(p => p.vol)
-        const minVol = Math.min(...vols)
-        const maxVol = Math.max(...vols)
-        const delta  = vols[vols.length - 1] - vols[vols.length - 2]
-        const trend  = delta > 0 ? { label: '↑ A subir', cls: 'text-green-400' }
-                     : delta < 0 ? { label: '↓ A descer', cls: 'text-red-400' }
-                     :             { label: '→ Estável',  cls: 'text-yellow-400' }
-        return (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <p className="text-white text-sm font-semibold">Progresso — {workout.label}</p>
-                <p className="text-gray-600 text-xs mt-0.5">Carga total por sessão (kg) · {chartData.length} sessões</p>
+      {/* Progress charts — one per group */}
+      <div className="space-y-3">
+        {chartGroups.map(({ label, pts }) => {
+          if (pts.length < 2) return (
+            <div key={label} className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-5 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center shrink-0">
+                <svg viewBox="0 0 16 16" className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <polyline points="1,12 5,7 8,9 12,4 15,6" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </div>
-              <span className={`text-xs font-semibold ${trend.cls}`}>{trend.label}</span>
+              <div>
+                <p className="text-gray-400 text-sm font-medium">Progresso — {label}</p>
+                <p className="text-gray-600 text-xs mt-0.5">
+                  {pts.length === 0
+                    ? 'Regista peso e reps em cada série para ver a evolução'
+                    : 'Falta 1 sessão para ver o gráfico'}
+                </p>
+              </div>
             </div>
-            <ResponsiveContainer width="100%" height={130}>
-              <LineChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
-                <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                <YAxis
-                  tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} width={42}
-                  domain={[Math.floor(minVol * 0.9), Math.ceil(maxVol * 1.05)]}
-                  tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v)}
-                />
-                <ReferenceLine y={vols[vols.length - 1]} stroke="#22d3ee" strokeDasharray="4 3" strokeOpacity={0.25} />
-                <Tooltip
-                  contentStyle={{ background: '#0d1117', border: '1px solid #1f2937', borderRadius: 8, fontSize: 12 }}
-                  labelStyle={{ color: '#6b7280' }}
-                  formatter={(v) => [`${Number(v).toLocaleString('pt-PT')} kg`, 'Carga']}
-                />
-                <Line type="monotone" dataKey="vol" stroke="#22d3ee" strokeWidth={2}
-                  dot={{ fill: '#22d3ee', r: 3, strokeWidth: 0 }}
-                  activeDot={{ r: 5, strokeWidth: 0 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )
-      })()}
+          )
+          const vols   = pts.map(p => p.vol)
+          const minVol = Math.min(...vols)
+          const maxVol = Math.max(...vols)
+          const delta  = vols[vols.length - 1] - vols[vols.length - 2]
+          const trend  = delta > 0 ? { label: '↑ A subir', cls: 'text-green-400' }
+                       : delta < 0 ? { label: '↓ A descer', cls: 'text-red-400' }
+                       :             { label: '→ Estável',  cls: 'text-yellow-400' }
+          return (
+            <div key={label} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <p className="text-white text-sm font-semibold">Progresso — {label}</p>
+                  <p className="text-gray-600 text-xs mt-0.5">Volume por sessão (kg × reps) · {pts.length} sessões</p>
+                </div>
+                <span className={`text-xs font-semibold ${trend.cls}`}>{trend.label}</span>
+              </div>
+              <ResponsiveContainer width="100%" height={130}>
+                <LineChart data={pts} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis
+                    tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} width={42}
+                    domain={[Math.floor(minVol * 0.9), Math.ceil(maxVol * 1.05)]}
+                    tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v)}
+                  />
+                  <ReferenceLine y={vols[vols.length - 1]} stroke="#22d3ee" strokeDasharray="4 3" strokeOpacity={0.25} />
+                  <Tooltip
+                    contentStyle={{ background: '#0d1117', border: '1px solid #1f2937', borderRadius: 8, fontSize: 12 }}
+                    labelStyle={{ color: '#6b7280' }}
+                    formatter={(v) => [`${Number(v).toLocaleString('pt-PT')} kg·reps`, 'Volume']}
+                  />
+                  <Line type="monotone" dataKey="vol" stroke="#22d3ee" strokeWidth={2}
+                    dot={{ fill: '#22d3ee', r: 3, strokeWidth: 0 }}
+                    activeDot={{ r: 5, strokeWidth: 0 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )
+        })}
+      </div>
 
       {/* Exercises */}
       <div className="space-y-3">

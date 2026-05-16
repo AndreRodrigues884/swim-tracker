@@ -5,11 +5,10 @@ import {
 } from 'recharts'
 import { supabase } from '../lib/supabase'
 
-interface SwimTime  { date: string; time_seconds: number }
-interface WSession  { id: string; date: string; day_type: string }
-interface WeightLog { date: string; weight_kg: number }
-interface SetLog    { exercise_id: string; weight_kg: number; reps_done: number; session_id: string }
-interface Prog      { date: string; exercise: string; load_kg: number }
+interface SwimTime { date: string; time_seconds: number }
+interface WSession { id: string; date: string; day_type: string }
+interface SetLog   { exercise_id: string; weight_kg: number; reps_done: number; session_id: string }
+interface Prog     { date: string; exercise: string; load_kg: number }
 
 function getMondayKey(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00')
@@ -59,7 +58,6 @@ const MG_COLOR: Record<string, string> = {
 export default function Estatisticas() {
   const [swimTimes,     setSwimTimes]     = useState<SwimTime[]>([])
   const [sessions,      setSessions]      = useState<WSession[]>([])
-  const [weightLogs,    setWeightLogs]    = useState<WeightLog[]>([])
   const [setLogs,       setSetLogs]       = useState<SetLog[]>([])
   const [progData,      setProgData]      = useState<Prog[]>([])
   const [selectedOrmEx, setSelectedOrmEx] = useState('pu-w')
@@ -69,17 +67,15 @@ export default function Estatisticas() {
     Promise.all([
       supabase.from('swim_times').select('date, time_seconds').order('date'),
       supabase.from('workout_sessions').select('id, date, day_type').order('date'),
-      supabase.from('weight_logs').select('date, weight_kg').order('date'),
       supabase.from('set_logs')
         .select('exercise_id, weight_kg, reps_done, session_id')
         .in('exercise_id', ormIds)
         .gt('weight_kg', 0)
         .gt('reps_done', 0),
       supabase.from('progressions').select('date, exercise, load_kg').order('date'),
-    ]).then(([swim, sess, wt, logs, pgrs]) => {
+    ]).then(([swim, sess, logs, pgrs]) => {
       if (swim.data)  setSwimTimes(swim.data)
       if (sess.data)  setSessions(sess.data)
-      if (wt.data)    setWeightLogs(wt.data)
       if (logs.data)  setSetLogs(logs.data as SetLog[])
       if (pgrs.data)  setProgData(pgrs.data)
     })
@@ -100,12 +96,6 @@ export default function Estatisticas() {
   const avgPerWeek = weekChartData.length > 0
     ? (weekChartData.reduce((s, w) => s + w.count, 0) / weekChartData.length).toFixed(1)
     : null
-
-  // ── Weight chart ───────────────────────────────────────────────────────
-  const weightChartData = weightLogs.map(w => ({ date: w.date.slice(5), kg: w.weight_kg }))
-  const firstWeight  = weightChartData.at(0)?.kg  ?? null
-  const latestWeight = weightChartData.at(-1)?.kg ?? null
-  const weightDelta  = firstWeight !== null && latestWeight !== null ? latestWeight - firstWeight : null
 
   // ── 1RM (Epley: weight × (1 + reps/30)) ───────────────────────────────
   const sessionDateMap: Record<string, string> = {}
@@ -348,57 +338,6 @@ export default function Estatisticas() {
         )}
       </div>
 
-      {/* ── Weight ────────────────────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-        <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
-          <div>
-            <h2 className="text-white font-semibold">Evolução do Peso</h2>
-            <p className="text-gray-600 text-xs mt-0.5">Atualiza o peso no Dashboard</p>
-          </div>
-          {weightChartData.length > 0 && (
-            <div className="flex gap-3">
-              <StatCard label="Inicial"  value={firstWeight  ? `${firstWeight}kg`  : '—'} />
-              <StatCard label="Atual"    value={latestWeight ? `${latestWeight}kg`  : '—'} accent />
-              <StatCard
-                label="Variação"
-                value={weightDelta !== null ? `${weightDelta >= 0 ? '+' : ''}${weightDelta.toFixed(1)}kg` : '—'}
-                positive={weightDelta !== null && weightDelta < 0}
-              />
-            </div>
-          )}
-        </div>
-        {weightChartData.length === 0 ? (
-          <Empty label="Sem registos de peso ainda — atualiza no Dashboard" h={36} />
-        ) : (
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={weightChartData} margin={{ top: 5, right: 24, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#111827" />
-              <XAxis dataKey="date" tick={{ fill: '#4b5563', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis
-                domain={[
-                  (dMin: number) => Math.max(50, dMin - 2),
-                  (dMax: number) => dMax + 2,
-                ]}
-                tick={{ fill: '#4b5563', fontSize: 11 }}
-                tickFormatter={v => `${v}kg`}
-                width={48}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                {...tooltipStyle}
-                formatter={(v: unknown) => [`${v}kg`, 'Peso']}
-              />
-              <Line
-                type="monotone" dataKey="kg" stroke="#a78bfa" strokeWidth={2.5}
-                dot={{ fill: '#a78bfa', r: 4, strokeWidth: 0 }}
-                activeDot={{ r: 6, fill: '#c4b5fd' }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
       {/* ── Sessions per week ─────────────────────────────────────────── */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
         <div className="flex items-center justify-between flex-wrap gap-3 mb-1">
@@ -433,20 +372,6 @@ export default function Estatisticas() {
           </ResponsiveContainer>
         )}
       </div>
-    </div>
-  )
-}
-
-function StatCard({
-  label, value, accent, positive,
-}: {
-  label: string; value: string; accent?: boolean; positive?: boolean
-}) {
-  const cls = accent ? 'text-cyan-400' : positive ? 'text-green-400' : 'text-white'
-  return (
-    <div className="bg-gray-800/60 rounded-xl p-3 min-w-0">
-      <p className="text-gray-600 text-xs mb-1 truncate">{label}</p>
-      <p className={`font-mono font-semibold text-sm ${cls}`}>{value}</p>
     </div>
   )
 }
