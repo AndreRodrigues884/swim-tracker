@@ -171,7 +171,7 @@ export default function Natacao() {
 
         {/* Chart */}
         <div className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <h2 className="text-white font-semibold mb-1">Evolução dos tempos</h2>
+          <h2 className="text-white font-semibold mb-1">Evolução 25m Freestyle</h2>
           <p className="text-gray-500 text-xs mb-4">
             Linha vermelha = objetivo 12.00s
           </p>

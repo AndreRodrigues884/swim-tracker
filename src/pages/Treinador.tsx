@@ -1,7 +1,39 @@
 import { useState, useEffect } from 'react'
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer,
+} from 'recharts'
 import { supabase } from '../lib/supabase'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface SwimMetricRow {
+  date:                   string
+  dolphin_kicks_wall:     number | null
+  underwater_dist_wall_m: number | null
+  dolphin_kicks_10m:      number | null
+  stroke_count_wall:      number | null
+  stroke_count_arms_only: number | null
+}
+
+const TECH_METRICS = [
+  { key: 'dolphin_kicks_wall'     as const, label: 'Dolphin kicks (parede)', unit: 'kicks', color: '#22d3ee', desc: 'Ideal: 5–7 · menos = mais potência' },
+  { key: 'underwater_dist_wall_m' as const, label: 'Distância subaquática',  unit: 'm',     color: '#60a5fa', desc: 'Ideal: 7–10m · mais = melhor'        },
+  { key: 'dolphin_kicks_10m'      as const, label: 'Kicks / 10m',            unit: 'kicks', color: '#a78bfa', desc: 'Ideal: 3–5 · menos = mais eficiente'  },
+  { key: 'stroke_count_wall'      as const, label: 'Braçadas (c/ pernas)',   unit: 'braç.', color: '#fb923c', desc: 'Ideal: 13–17 · menos = melhor'        },
+  { key: 'stroke_count_arms_only' as const, label: 'Braçadas (só braçada)',  unit: 'braç.', color: '#f472b6', desc: 'Ideal: 13–17 · menos = mais força'    },
+] as const
+
+const tooltipStyle = {
+  contentStyle: {
+    background: '#0d1117',
+    border: '1px solid #1f2937',
+    borderRadius: 10,
+    fontSize: 12,
+    boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
+  },
+  labelStyle: { color: '#6b7280' },
+}
 
 interface SwimTime    { id: string; date: string; time_seconds: number }
 interface Session     { id: string; date: string; day_type: string; difficulty: number }
@@ -11,18 +43,13 @@ interface Note        { id: string; date: string; type: string; content: string 
 interface SwimMetric {
   id: string
   date: string
-  // saída de blocos
-  dolphin_kicks_start:    number | null
-  underwater_dist_m:      number | null
-  reaction_time_s:        number | null
   // empurrão da parede
-  dolphin_kicks_wall:     number | null
-  underwater_dist_wall_m: number | null
-  stroke_count_wall:      number | null
-  // gerais
-  stroke_count_25m:       number | null
-  stroke_rate_cpm:        number | null
-  notes:                  string | null
+  dolphin_kicks_wall:      number | null
+  underwater_dist_wall_m:  number | null
+  dolphin_kicks_10m:       number | null
+  stroke_count_wall:       number | null
+  stroke_count_arms_only:  number | null
+  notes:                   string | null
 }
 
 type Trend = 'improving' | 'plateau' | 'regressing' | 'insufficient'
@@ -34,34 +61,6 @@ const START_TIME = 13.90
 
 // Grouped metric definitions
 const GROUPS = [
-  {
-    id:    'blocks',
-    label: 'Saída de blocos',
-    desc:  'Métricas da saída de bloco (com salto)',
-    items: [
-      {
-        key:   'dolphin_kicks_start' as const,
-        label: 'Dolphin kicks',
-        unit:  'kicks', step: '1', min: '1', max: '15',
-        tip:   'Kicks desde a entrada na água até surfaçar. Ideal para 196cm: 6–8 kicks potentes.',
-        ideal: '6–8', icon: '🐬',
-      },
-      {
-        key:   'underwater_dist_m' as const,
-        label: 'Distância subaquática',
-        unit:  'm', step: '0.5', min: '1', max: '15',
-        tip:   'Metros em underwater após saída antes de surfaçar. Ideal: 8–11m (até 2/5 dos 25m).',
-        ideal: '8–11 m', icon: '📏',
-      },
-      {
-        key:   'reaction_time_s' as const,
-        label: 'Tempo de reação',
-        unit:  's', step: '0.01', min: '0.10', max: '2.00',
-        tip:   'Do sinal de partida ao primeiro movimento. Precisa de sensor ou vídeo. Referência: <0.70s.',
-        ideal: '<0.70 s', icon: '🚀',
-      },
-    ],
-  },
   {
     id:    'wall',
     label: 'Empurrão da parede',
@@ -82,54 +81,43 @@ const GROUPS = [
         ideal: '7–10 m', icon: '📏',
       },
       {
+        key:   'dolphin_kicks_10m' as const,
+        label: 'Dolphin kicks / 10m',
+        unit:  'kicks', step: '1', min: '1', max: '15',
+        tip:   'Nº de dolphin kicks para percorrer 10m em underwater após empurrão da parede. Menos kicks = mais potência por kick. Objetivo: reduzir ao longo do tempo.',
+        ideal: '3–5', icon: '🐬',
+      },
+      {
         key:   'stroke_count_wall' as const,
         label: 'Braçadas em 25m',
         unit:  'braçadas', step: '1', min: '5', max: '40',
         tip:   'Ciclos de braçada desde o breakout até à parede, após empurrão. Ideal para 196cm: 13–17 braçadas.',
         ideal: '13–17', icon: '🤿',
       },
-    ],
-  },
-  {
-    id:    'general',
-    label: 'Métricas gerais',
-    desc:  'Válidas para qualquer sessão',
-    items: [
       {
-        key:   'stroke_count_25m' as const,
-        label: 'Braçadas em 25m',
+        key:   'stroke_count_arms_only' as const,
+        label: 'Braçadas (só braçada)',
         unit:  'braçadas', step: '1', min: '5', max: '40',
-        tip:   'Ciclos de braçada do breakout ao toque. Com 196cm, idealmente 13–17 braçadas.',
-        ideal: '13–17', icon: '🤿',
-      },
-      {
-        key:   'stroke_rate_cpm' as const,
-        label: 'Cadência',
-        unit:  'ciclos/min', step: '0.5', min: '20', max: '100',
-        tip:   'Frequência de braçada. Conta 10 ciclos cronometrados × 6. Sprint ideal: 58–70 cpm.',
-        ideal: '58–70 cpm', icon: '⚡',
+        tip:   'Ciclos de braçada em 25m com pernas paradas ou pull buoy — mede a força da braçada isolada. Objetivo: reduzir ao longo do tempo (braçadas mais largas e eficientes).',
+        ideal: '13–17', icon: '💪',
       },
     ],
   },
 ] as const
 
 type MetricKey =
-  | 'dolphin_kicks_start' | 'underwater_dist_m'     | 'reaction_time_s'
-  | 'dolphin_kicks_wall'  | 'underwater_dist_wall_m' | 'stroke_count_wall'
-  | 'stroke_count_25m'    | 'stroke_rate_cpm'
+  | 'dolphin_kicks_wall' | 'underwater_dist_wall_m' | 'dolphin_kicks_10m'
+  | 'stroke_count_wall'  | 'stroke_count_arms_only'
 
 type MetricForm = Record<MetricKey, string> & { date: string; notes: string }
 
 const emptyForm = (): MetricForm => ({
   date:                    new Date().toISOString().split('T')[0],
-  dolphin_kicks_start:     '',
-  underwater_dist_m:       '',
-  reaction_time_s:         '',
   dolphin_kicks_wall:      '',
   underwater_dist_wall_m:  '',
+  dolphin_kicks_10m:       '',
   stroke_count_wall:       '',
-  stroke_count_25m:        '',
-  stroke_rate_cpm:         '',
+  stroke_count_arms_only:  '',
   notes:                   '',
 })
 
@@ -205,21 +193,16 @@ function buildPrompt(
   const latestMetric = metrics[0] ?? null
   const techCurrent = latestMetric ? `
 Data: ${latestMetric.date}
-  [Saída de blocos]
-    Dolphin kicks       : ${latestMetric.dolphin_kicks_start    ?? 'N/A'} (ideal: 6–8)
-    Distância subaquát. : ${latestMetric.underwater_dist_m      ?? 'N/A'} m (ideal: 8–11m)
-    Tempo de reação     : ${latestMetric.reaction_time_s        ?? 'N/A'} s (ref: <0.70s)
   [Empurrão da parede]
-    Dolphin kicks       : ${latestMetric.dolphin_kicks_wall     ?? 'N/A'} (ideal: 5–7)
-    Distância subaquát. : ${latestMetric.underwater_dist_wall_m ?? 'N/A'} m (ideal: 7–10m)
-    Braçadas em 25m     : ${latestMetric.stroke_count_wall      ?? 'N/A'} (ideal para 196cm: 13–17)
-  [Geral]
-    Braçadas em 25m     : ${latestMetric.stroke_count_25m       ?? 'N/A'} (ideal para 196cm: 13–17)
-    Cadência            : ${latestMetric.stroke_rate_cpm        ?? 'N/A'} cpm (ideal sprint: 58–70)
+    Dolphin kicks        : ${latestMetric.dolphin_kicks_wall     ?? 'N/A'} (ideal: 5–7)
+    Distância subaquát.  : ${latestMetric.underwater_dist_wall_m ?? 'N/A'} m (ideal: 7–10m)
+    Kicks / 10m          : ${latestMetric.dolphin_kicks_10m      ?? 'N/A'} (ideal: 3–5, menos = mais eficiente)
+    Braçadas (c/ pernas) : ${latestMetric.stroke_count_wall      ?? 'N/A'} (ideal para 196cm: 13–17)
+    Braçadas (só braçada): ${latestMetric.stroke_count_arms_only ?? 'N/A'} (força da braçada isolada)
   ${latestMetric.notes ? `Notas: ${latestMetric.notes}` : ''}`.trim() : '  (sem dados técnicos registados ainda)'
 
   const techHistory = metrics.slice(1, 4).map(m =>
-    `  ${m.date}: blocos(kicks=${m.dolphin_kicks_start ?? '?'}, sub=${m.underwater_dist_m ?? '?'}m) | parede(kicks=${m.dolphin_kicks_wall ?? '?'}, sub=${m.underwater_dist_wall_m ?? '?'}m, braç=${m.stroke_count_wall ?? '?'}) | geral(braç=${m.stroke_count_25m ?? '?'}, cad=${m.stroke_rate_cpm ?? '?'}cpm)`
+    `  ${m.date}: parede(kicks=${m.dolphin_kicks_wall ?? '?'}, sub=${m.underwater_dist_wall_m ?? '?'}m, kicks10m=${m.dolphin_kicks_10m ?? '?'}, braç=${m.stroke_count_wall ?? '?'}, braçSóBraço=${m.stroke_count_arms_only ?? '?'})`
   ).join('\n')
 
   return `Sou o André, 22 anos, 196cm, 93kg. Objetivo: 25m freestyle em 12.00s.
@@ -250,7 +233,7 @@ ${notesStr || '(sem notas)'}
 
 Analisa o meu perfil técnico e de performance. Responde com:
 1. **Nível técnico atual** — onde estou comparado com o objetivo de 12s? O que os dados técnicos revelam?
-2. **Ponto crítico #1** — qual a maior limitação técnica com base nos dados (dolphin kicks, underwater, braçadas, cadência)?
+2. **Ponto crítico #1** — qual a maior limitação técnica com base nos dados (dolphin kicks, underwater, eficiência de kicks/10m, braçadas)?
 3. **Plano desta semana** — 2-3 ações concretas e específicas (ex: "nos próximos treinos foca X sessions a fazer Y")
 4. **O que está bem** — o que devo continuar a fazer
 
@@ -274,6 +257,7 @@ export default function Treinador() {
   const [progressions, setProgressions] = useState<Progression[]>([])
   const [notes,        setNotes]        = useState<Note[]>([])
   const [techMetrics,  setTechMetrics]  = useState<SwimMetric[]>([])
+  const [swimMetrics,  setSwimMetrics]  = useState<SwimMetricRow[]>([])
   const [loading,      setLoading]      = useState(true)
   const [analyzing,    setAnalyzing]    = useState(false)
   const [saving,       setSaving]       = useState(false)
@@ -290,12 +274,16 @@ export default function Treinador() {
       supabase.from('progressions').select('*').order('date'),
       supabase.from('notes').select('*').order('date'),
       supabase.from('swim_metrics').select('*').order('date', { ascending: false }).limit(10),
-    ]).then(([t, s, p, n, m]) => {
+      supabase.from('swim_metrics')
+        .select('date, dolphin_kicks_wall, underwater_dist_wall_m, dolphin_kicks_10m, stroke_count_wall, stroke_count_arms_only')
+        .order('date', { ascending: true }),
+    ]).then(([t, s, p, n, m, chart]) => {
       setSwimTimes(t.data ?? [])
       setSessions(s.data ?? [])
       setProgressions(p.data ?? [])
       setNotes(n.data ?? [])
       setTechMetrics(m.data ?? [])
+      setSwimMetrics(chart.data as SwimMetricRow[] ?? [])
       setLoading(false)
     })
   }, [])
@@ -310,7 +298,6 @@ export default function Treinador() {
   const eta         = etaFromRate(sorted, rate)
   const spw         = avgSessionsPerWeek(sessions)
   const trend       = trendStatus(sorted)
-  const recentTimes = sorted.slice(-5).reverse()
   const progress    = latestTime ? Math.min(100, ((START_TIME - latestTime) / (START_TIME - GOAL)) * 100) : 0
   const gapToGoal   = latestTime ? latestTime - GOAL : null
 
@@ -321,14 +308,11 @@ export default function Treinador() {
     setSaveMsg(null)
     const row = {
       date:                    form.date,
-      dolphin_kicks_start:     form.dolphin_kicks_start     ? parseInt(form.dolphin_kicks_start)     : null,
-      underwater_dist_m:       form.underwater_dist_m       ? parseFloat(form.underwater_dist_m)     : null,
-      reaction_time_s:         form.reaction_time_s         ? parseFloat(form.reaction_time_s)       : null,
-      dolphin_kicks_wall:      form.dolphin_kicks_wall      ? parseInt(form.dolphin_kicks_wall)       : null,
-      underwater_dist_wall_m:  form.underwater_dist_wall_m  ? parseFloat(form.underwater_dist_wall_m) : null,
-      stroke_count_wall:       form.stroke_count_wall       ? parseInt(form.stroke_count_wall)        : null,
-      stroke_count_25m:        form.stroke_count_25m        ? parseInt(form.stroke_count_25m)        : null,
-      stroke_rate_cpm:         form.stroke_rate_cpm         ? parseFloat(form.stroke_rate_cpm)       : null,
+      dolphin_kicks_wall:      form.dolphin_kicks_wall     ? parseInt(form.dolphin_kicks_wall)       : null,
+      underwater_dist_wall_m:  form.underwater_dist_wall_m ? parseFloat(form.underwater_dist_wall_m) : null,
+      dolphin_kicks_10m:       form.dolphin_kicks_10m      ? parseInt(form.dolphin_kicks_10m)        : null,
+      stroke_count_wall:       form.stroke_count_wall      ? parseInt(form.stroke_count_wall)        : null,
+      stroke_count_arms_only:  form.stroke_count_arms_only ? parseInt(form.stroke_count_arms_only)   : null,
       notes:                   form.notes.trim() || null,
     }
     const { data, error } = await supabase.from('swim_metrics').insert(row).select().single()
@@ -599,24 +583,19 @@ export default function Treinador() {
           <div className="px-5 py-4">
             <p className="text-gray-600 text-xs font-medium mb-3">Histórico</p>
             <div className="overflow-x-auto">
-              <table className="w-full text-xs min-w-130">
+              <table className="w-full text-xs min-w-96">
                 <thead>
                   <tr className="text-gray-600 border-b border-gray-800">
                     <th className="text-left pb-2 font-medium pr-3">Data</th>
-                    <th className="text-center pb-2 font-medium px-2" colSpan={2}>Blocos</th>
-                    <th className="text-center pb-2 font-medium px-2 border-l border-gray-800" colSpan={2}>Parede</th>
-                    <th className="text-center pb-2 font-medium px-2 border-l border-gray-800">🤿</th>
-                    <th className="text-center pb-2 font-medium px-2">⚡</th>
+                    <th className="text-center pb-2 font-medium px-2" colSpan={5}>Empurrão da parede</th>
                   </tr>
                   <tr className="text-gray-700 border-b border-gray-800/50">
                     <th className="pb-1.5" />
                     <th className="text-center pb-1.5 font-normal">🐬 kicks</th>
                     <th className="text-center pb-1.5 font-normal">📏 m</th>
-                    <th className="text-center pb-1.5 font-normal border-l border-gray-800">🐬 kicks</th>
-                    <th className="text-center pb-1.5 font-normal">📏 m</th>
+                    <th className="text-center pb-1.5 font-normal">🐬/10m</th>
                     <th className="text-center pb-1.5 font-normal">🤿 braç.</th>
-                    <th className="text-center pb-1.5 font-normal border-l border-gray-800">braç.</th>
-                    <th className="text-center pb-1.5 font-normal">cpm</th>
+                    <th className="text-center pb-1.5 font-normal">💪 braç.</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -625,13 +604,11 @@ export default function Treinador() {
                       <td className="py-2 pr-3">
                         {new Date(m.date + 'T00:00:00').toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' })}
                       </td>
-                      <td className="text-center py-2 font-mono">{m.dolphin_kicks_start    ?? '—'}</td>
-                      <td className="text-center py-2 font-mono">{m.underwater_dist_m      ?? '—'}</td>
-                      <td className="text-center py-2 font-mono border-l border-gray-800">{m.dolphin_kicks_wall     ?? '—'}</td>
+                      <td className="text-center py-2 font-mono">{m.dolphin_kicks_wall     ?? '—'}</td>
                       <td className="text-center py-2 font-mono">{m.underwater_dist_wall_m ?? '—'}</td>
+                      <td className="text-center py-2 font-mono">{m.dolphin_kicks_10m      ?? '—'}</td>
                       <td className="text-center py-2 font-mono">{m.stroke_count_wall      ?? '—'}</td>
-                      <td className="text-center py-2 font-mono border-l border-gray-800">{m.stroke_count_25m       ?? '—'}</td>
-                      <td className="text-center py-2 font-mono">{m.stroke_rate_cpm        ?? '—'}</td>
+                      <td className="text-center py-2 font-mono">{m.stroke_count_arms_only ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -651,33 +628,78 @@ export default function Treinador() {
         )}
       </div>
 
-      {/* Recent swim times */}
-      {recentTimes.length > 0 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <h2 className="text-white font-semibold mb-3">Últimas sessões de natação</h2>
-          <div className="space-y-2.5">
-            {recentTimes.map((t, i) => {
-              const older = recentTimes[i + 1]
-              const delta = older ? t.time_seconds - older.time_seconds : null
+      {/* ── Métricas Técnicas ──────────────────────────────────────────── */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <div className="mb-4">
+          <h2 className="text-white font-semibold">Evolução das Métricas Técnicas</h2>
+          <p className="text-gray-500 text-xs mt-0.5">Empurrão da parede · progressão ao longo do tempo</p>
+        </div>
+        {swimMetrics.length < 2 ? (
+          <div className="flex items-center justify-center text-gray-600 text-sm py-10">
+            {swimMetrics.length === 0
+              ? 'Regista métricas técnicas acima para ver a evolução'
+              : 'Falta 1 sessão para ver os gráficos'}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {TECH_METRICS.map(({ key, label, unit, color, desc }) => {
+              const pts = swimMetrics
+                .filter(m => m[key] != null)
+                .map(m => ({ date: m.date.slice(5), value: m[key] as number }))
+              if (pts.length < 2) return (
+                <div key={key} className="bg-gray-800/30 border border-gray-800 rounded-xl p-4">
+                  <p className="text-gray-400 text-xs font-medium mb-0.5">{label}</p>
+                  <p className="text-gray-600 text-xs">Sem dados suficientes</p>
+                </div>
+              )
+              const latest = pts.at(-1)!.value
+              const delta  = latest - pts[0].value
               return (
-                <div key={t.id} className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400">
-                    {new Date(t.date + 'T00:00:00').toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' })}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    {delta != null && (
-                      <span className={`text-xs tabular-nums ${delta < 0 ? 'text-green-400' : delta > 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                        {delta < 0 ? '' : '+'}{delta.toFixed(2)}s
-                      </span>
-                    )}
-                    <span className="text-white font-mono font-semibold w-16 text-right">{t.time_seconds}s</span>
+                <div key={key} className="bg-gray-800/30 border border-gray-800 rounded-xl p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="text-gray-300 text-xs font-medium">{label}</p>
+                      <p className="text-gray-600 text-xs mt-0.5">{desc}</p>
+                    </div>
+                    <div className="text-right shrink-0 ml-2">
+                      <p className="font-mono font-bold text-sm leading-none" style={{ color }}>
+                        {latest} {unit}
+                      </p>
+                      {delta !== 0 && (
+                        <p className={`text-xs mt-0.5 ${delta < 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {delta > 0 ? '+' : ''}{delta.toFixed(key === 'underwater_dist_wall_m' ? 1 : 0)}
+                        </p>
+                      )}
+                    </div>
                   </div>
+                  <ResponsiveContainer width="100%" height={110}>
+                    <LineChart data={pts} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#111827" />
+                      <XAxis dataKey="date" tick={{ fill: '#4b5563', fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis
+                        domain={[(d: number) => Math.floor(d * 0.9), (d: number) => Math.ceil(d * 1.08)]}
+                        tick={{ fill: '#4b5563', fontSize: 10 }}
+                        width={32}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip
+                        {...tooltipStyle}
+                        formatter={(v: unknown) => [`${v} ${unit}`, label]}
+                      />
+                      <Line
+                        type="monotone" dataKey="value" stroke={color} strokeWidth={2}
+                        dot={{ fill: color, r: 3, strokeWidth: 0 }}
+                        activeDot={{ r: 5 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
               )
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* AI Coach */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">

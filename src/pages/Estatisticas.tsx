@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ReferenceLine, ResponsiveContainer, BarChart, Bar,
+  ResponsiveContainer, BarChart, Bar,
 } from 'recharts'
 import { supabase } from '../lib/supabase'
 
-interface SwimTime { date: string; time_seconds: number }
-interface WSession { id: string; date: string; day_type: string }
-interface SetLog   { exercise_id: string; weight_kg: number; reps_done: number; session_id: string }
-interface Prog     { date: string; exercise: string; load_kg: number }
+interface WSession  { id: string; date: string; day_type: string }
+interface SetLog    { exercise_id: string; weight_kg: number; reps_done: number; session_id: string }
+interface Prog      { date: string; exercise: string; load_kg: number }
 
 function getMondayKey(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00')
@@ -56,7 +55,6 @@ const MG_COLOR: Record<string, string> = {
 }
 
 export default function Estatisticas() {
-  const [swimTimes,     setSwimTimes]     = useState<SwimTime[]>([])
   const [sessions,      setSessions]      = useState<WSession[]>([])
   const [setLogs,       setSetLogs]       = useState<SetLog[]>([])
   const [progData,      setProgData]      = useState<Prog[]>([])
@@ -65,7 +63,6 @@ export default function Estatisticas() {
   useEffect(() => {
     const ormIds = ORM_EXERCISES.map(e => e.id)
     Promise.all([
-      supabase.from('swim_times').select('date, time_seconds').order('date'),
       supabase.from('workout_sessions').select('id, date, day_type').order('date'),
       supabase.from('set_logs')
         .select('exercise_id, weight_kg, reps_done, session_id')
@@ -73,16 +70,12 @@ export default function Estatisticas() {
         .gt('weight_kg', 0)
         .gt('reps_done', 0),
       supabase.from('progressions').select('date, exercise, load_kg').order('date'),
-    ]).then(([swim, sess, logs, pgrs]) => {
-      if (swim.data)  setSwimTimes(swim.data)
+    ]).then(([sess, logs, pgrs]) => {
       if (sess.data)  setSessions(sess.data)
       if (logs.data)  setSetLogs(logs.data as SetLog[])
       if (pgrs.data)  setProgData(pgrs.data)
     })
   }, [])
-
-  // ── Swim chart ─────────────────────────────────────────────────────────
-  const swimChartData = swimTimes.map(t => ({ date: t.date.slice(5), time: t.time_seconds }))
 
   // ── Sessions per week ──────────────────────────────────────────────────
   const weekMap: Record<string, number> = {}
@@ -122,6 +115,25 @@ export default function Estatisticas() {
   const latestOrm = currentOrmPts.at(-1)?.orm ?? null
   const bestOrm   = currentOrmPts.length > 0 ? Math.max(...currentOrmPts.map(p => p.orm)) : null
 
+  // ── Força Total (soma dos 1RM acumulados) ──────────────────────────────
+  const allDatesSet = new Set<string>()
+  for (const ex of ORM_EXERCISES) {
+    for (const date of Object.keys(ormByExDate[ex.id] ?? {})) allDatesSet.add(date)
+  }
+  const allDatesSorted = Array.from(allDatesSet).sort()
+  const runningBest: Record<string, number> = {}
+  const totalStrengthData = allDatesSorted.map(date => {
+    for (const ex of ORM_EXERCISES) {
+      const orm = ormByExDate[ex.id]?.[date]
+      if (orm !== undefined && orm > (runningBest[ex.id] ?? 0)) runningBest[ex.id] = orm
+    }
+    const total = Object.values(runningBest).reduce((s, v) => s + v, 0)
+    return { date: date.slice(5), total: parseFloat(total.toFixed(1)) }
+  })
+  const latestTotal = totalStrengthData.at(-1)?.total ?? null
+  const firstTotal  = totalStrengthData[0]?.total ?? null
+  const totalGain   = latestTotal !== null && firstTotal !== null ? latestTotal - firstTotal : null
+
   // ── Volume semanal por grupo muscular ──────────────────────────────────
   const volWeekMap: Record<string, Record<string, number>> = {}
   for (const s of sessions) {
@@ -155,7 +167,59 @@ export default function Estatisticas() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">Estatísticas</h1>
-        <p className="text-gray-400 text-sm mt-1">Força, natação, peso e consistência</p>
+        <p className="text-gray-400 text-sm mt-1">Força e consistência</p>
+      </div>
+
+      {/* ── Força Total ───────────────────────────────────────────────── */}
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-white font-semibold">Força Total</h2>
+            <p className="text-gray-600 text-xs mt-0.5">Soma dos 1RM acumulados · todos os exercícios</p>
+          </div>
+          {latestTotal !== null && (
+            <div className="text-right shrink-0">
+              <p className="text-violet-400 font-mono font-bold text-xl leading-none">
+                {latestTotal.toFixed(0)} kg
+              </p>
+              {totalGain !== null && totalGain > 0 && (
+                <p className="text-green-400 text-xs mt-1">+{totalGain.toFixed(0)} kg ganhos</p>
+              )}
+            </div>
+          )}
+        </div>
+        {totalStrengthData.length < 2 ? (
+          <Empty
+            label={totalStrengthData.length === 0
+              ? 'Regista séries com peso e reps para calcular a Força Total'
+              : 'Falta 1 sessão para ver o gráfico'}
+            h={44}
+          />
+        ) : (
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={totalStrengthData} margin={{ top: 5, right: 24, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#111827" />
+              <XAxis dataKey="date" tick={{ fill: '#4b5563', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis
+                domain={[(dMin: number) => Math.floor(dMin * 0.95), (dMax: number) => Math.ceil(dMax * 1.03)]}
+                tick={{ fill: '#4b5563', fontSize: 11 }}
+                tickFormatter={v => `${v}kg`}
+                width={52}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip
+                {...tooltipStyle}
+                formatter={(v: unknown) => [`${(v as number).toFixed(0)} kg`, 'Força Total']}
+              />
+              <Line
+                type="monotone" dataKey="total" stroke="#a78bfa" strokeWidth={2.5}
+                dot={{ fill: '#a78bfa', r: 4, strokeWidth: 0 }}
+                activeDot={{ r: 6, fill: '#c4b5fd' }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       {/* ── 1RM Estimado ──────────────────────────────────────────────── */}
@@ -293,48 +357,6 @@ export default function Estatisticas() {
               </div>
             ))}
           </div>
-        )}
-      </div>
-
-      {/* ── Swim times ────────────────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-        <div className="mb-4">
-          <h2 className="text-white font-semibold">Evolução 25m Freestyle</h2>
-          <p className="text-gray-600 text-xs mt-0.5">Linha vermelha = objetivo 12.00s</p>
-        </div>
-        {swimChartData.length === 0 ? (
-          <Empty label="Sem registos de natação ainda" h={44} />
-        ) : (
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={swimChartData} margin={{ top: 5, right: 24, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#111827" />
-              <XAxis dataKey="date" tick={{ fill: '#4b5563', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis
-                domain={[
-                  (dMin: number) => Math.min(11.5, dMin - 0.3),
-                  (dMax: number) => dMax + 0.4,
-                ]}
-                tick={{ fill: '#4b5563', fontSize: 11 }}
-                tickFormatter={v => `${(v as number).toFixed(1)}s`}
-                width={44}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                {...tooltipStyle}
-                formatter={(v: unknown) => [`${(v as number).toFixed(2)}s`, 'Tempo']}
-              />
-              <ReferenceLine
-                y={12} stroke="#ef4444" strokeDasharray="5 4" strokeWidth={1.5}
-                label={{ value: '12.00s', fill: '#ef4444', fontSize: 11, position: 'insideTopRight' }}
-              />
-              <Line
-                type="monotone" dataKey="time" stroke="#22d3ee" strokeWidth={2.5}
-                dot={{ fill: '#22d3ee', r: 4, strokeWidth: 0 }}
-                activeDot={{ r: 6, fill: '#67e8f9' }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
         )}
       </div>
 

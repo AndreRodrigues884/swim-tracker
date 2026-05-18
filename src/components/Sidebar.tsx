@@ -4,7 +4,7 @@ const links = [
   { to: '/',             label: 'Dashboard',   icon: '📊' },
   { to: '/treino',       label: 'Treino',       icon: '🏋️' },
   { to: '/natacao',      label: 'Natação',      icon: '🏊' },
-  { to: '/core',         label: 'Core & Força', icon: '💪' },
+  { to: '/core',         label: 'Core & Mobilidade', icon: '💪' },
   { to: '/nutricao',     label: 'Nutrição',     icon: '🥗' },
   { to: '/estatisticas', label: 'Estatísticas', icon: '📈' },
   { to: '/treinador',    label: 'Treinador IA', icon: '🤖' },
