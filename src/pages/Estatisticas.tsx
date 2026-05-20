@@ -71,9 +71,15 @@ export default function Estatisticas() {
         .gt('reps_done', 0),
       supabase.from('progressions').select('date, exercise, load_kg').order('date'),
     ]).then(([sess, logs, pgrs]) => {
-      if (sess.data)  setSessions(sess.data)
-      if (logs.data)  setSetLogs(logs.data as SetLog[])
-      if (pgrs.data)  setProgData(pgrs.data)
+      if (sess.data) setSessions(sess.data)
+      if (logs.data) {
+        const logData = logs.data as SetLog[]
+        setSetLogs(logData)
+        // Auto-select the first exercise that actually has logged data
+        const firstWithData = ORM_EXERCISES.find(e => logData.some(l => l.exercise_id === e.id))
+        if (firstWithData) setSelectedOrmEx(firstWithData.id)
+      }
+      if (pgrs.data) setProgData(pgrs.data)
     })
   }, [])
 
