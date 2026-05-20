@@ -5,7 +5,8 @@
       "Bash(Get-ChildItem -Path src -Recurse -Filter *.tsx)",
       "Bash(Select-Object FullName)",
       "Bash(node scripts/gen-icons.mjs)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(grep -v \"Use \\\\`node\")"
     ]
   }
 }

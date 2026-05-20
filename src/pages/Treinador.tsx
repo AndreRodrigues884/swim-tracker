@@ -19,10 +19,28 @@ interface SwimMetricRow {
 const TECH_METRICS = [
   { key: 'dolphin_kicks_wall'     as const, label: 'Dolphin kicks (parede)', unit: 'kicks', color: '#22d3ee', desc: 'Ideal: 5–7 · menos = mais potência' },
   { key: 'underwater_dist_wall_m' as const, label: 'Distância subaquática',  unit: 'm',     color: '#60a5fa', desc: 'Ideal: 7–10m · mais = melhor'        },
-  { key: 'dolphin_kicks_10m'      as const, label: 'Kicks / 10m',            unit: 'kicks', color: '#a78bfa', desc: 'Ideal: 3–5 · menos = mais eficiente'  },
+  { key: 'dolphin_kicks_10m'      as const, label: 'Kicks / 10m',            unit: 'kicks', color: '#a78bfa', desc: 'Ideal: 5–8 · parado, sem impulso'     },
   { key: 'stroke_count_wall'      as const, label: 'Braçadas (c/ pernas)',   unit: 'braç.', color: '#fb923c', desc: 'Ideal: 13–17 · menos = melhor'        },
   { key: 'stroke_count_arms_only' as const, label: 'Braçadas (só braçada)',  unit: 'braç.', color: '#f472b6', desc: 'Ideal: 13–17 · menos = mais força'    },
 ] as const
+
+// Normalização para o Índice Técnico (0–100%)
+const TECH_SCORING: Record<string, { ideal: number; worst: number; higherIsBetter: boolean }> = {
+  dolphin_kicks_wall:     { ideal: 5,  worst: 12, higherIsBetter: false },
+  underwater_dist_wall_m: { ideal: 10, worst: 5,  higherIsBetter: true  },
+  dolphin_kicks_10m:      { ideal: 5,  worst: 15, higherIsBetter: false },
+  stroke_count_wall:      { ideal: 13, worst: 25, higherIsBetter: false },
+  stroke_count_arms_only: { ideal: 13, worst: 25, higherIsBetter: false },
+}
+
+function metricScore(key: string, value: number): number {
+  const s = TECH_SCORING[key]
+  if (!s) return 0
+  const raw = s.higherIsBetter
+    ? (value - s.worst) / (s.ideal - s.worst)
+    : (s.worst - value) / (s.worst - s.ideal)
+  return Math.round(Math.min(100, Math.max(0, raw * 100)))}
+
 
 const tooltipStyle = {
   contentStyle: {
@@ -84,8 +102,8 @@ const GROUPS = [
         key:   'dolphin_kicks_10m' as const,
         label: 'Dolphin kicks / 10m',
         unit:  'kicks', step: '1', min: '1', max: '15',
-        tip:   'Nº de dolphin kicks para percorrer 10m em underwater após empurrão da parede. Menos kicks = mais potência por kick. Objetivo: reduzir ao longo do tempo.',
-        ideal: '3–5', icon: '🐬',
+        tip:   'Corpo parado, sem impulso — conta quantos dolphin kicks precisas para percorrer 10m em underwater. Mede a potência isolada do kick, sem momentum da parede. Objetivo: reduzir ao longo do tempo.',
+        ideal: '5–8', icon: '🐬',
       },
       {
         key:   'stroke_count_wall' as const,
@@ -196,7 +214,7 @@ Data: ${latestMetric.date}
   [Empurrão da parede]
     Dolphin kicks        : ${latestMetric.dolphin_kicks_wall     ?? 'N/A'} (ideal: 5–7)
     Distância subaquát.  : ${latestMetric.underwater_dist_wall_m ?? 'N/A'} m (ideal: 7–10m)
-    Kicks / 10m          : ${latestMetric.dolphin_kicks_10m      ?? 'N/A'} (ideal: 3–5, menos = mais eficiente)
+    Kicks / 10m          : ${latestMetric.dolphin_kicks_10m      ?? 'N/A'} (ideal: 5–8, corpo parado sem impulso, menos = mais potência)
     Braçadas (c/ pernas) : ${latestMetric.stroke_count_wall      ?? 'N/A'} (ideal para 196cm: 13–17)
     Braçadas (só braçada): ${latestMetric.stroke_count_arms_only ?? 'N/A'} (força da braçada isolada)
   ${latestMetric.notes ? `Notas: ${latestMetric.notes}` : ''}`.trim() : '  (sem dados técnicos registados ainda)'
@@ -587,7 +605,6 @@ export default function Treinador() {
                 <thead>
                   <tr className="text-gray-600 border-b border-gray-800">
                     <th className="text-left pb-2 font-medium pr-3">Data</th>
-                    <th className="text-center pb-2 font-medium px-2" colSpan={5}>Empurrão da parede</th>
                   </tr>
                   <tr className="text-gray-700 border-b border-gray-800/50">
                     <th className="pb-1.5" />
@@ -640,8 +657,61 @@ export default function Treinador() {
               ? 'Regista métricas técnicas acima para ver a evolução'
               : 'Falta 1 sessão para ver os gráficos'}
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        ) : (() => {
+          const techScoreData = swimMetrics.map(m => {
+            const scores = TECH_METRICS
+              .map(({ key }) => m[key] != null ? metricScore(key, m[key] as number) : null)
+              .filter((s): s is number => s !== null)
+            const avg = scores.length > 0
+              ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+              : null
+            return { date: m.date.slice(5), score: avg }
+          }).filter(p => p.score !== null) as { date: string; score: number }[]
+
+          const latestScore = techScoreData.at(-1)?.score ?? null
+          const firstScore  = techScoreData[0]?.score ?? null
+          const scoreDelta  = latestScore !== null && firstScore !== null ? latestScore - firstScore : null
+
+          return (
+          <div className="space-y-5">
+            {/* Índice geral */}
+            <div className="bg-gray-800/40 border border-gray-700/50 rounded-xl p-4">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <p className="text-white text-sm font-semibold">Índice Técnico Geral</p>
+                  <p className="text-gray-600 text-xs mt-0.5">Média normalizada das 5 métricas · 0 = mau · 100 = ideal</p>
+                </div>
+                {latestScore !== null && (
+                  <div className="text-right shrink-0 ml-3">
+                    <p className="text-cyan-400 font-mono font-bold text-2xl leading-none">{latestScore}</p>
+                    <p className="text-gray-500 text-xs mt-0.5">/ 100</p>
+                    {scoreDelta !== null && scoreDelta !== 0 && (
+                      <p className={`text-xs mt-1 font-medium ${scoreDelta > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {scoreDelta > 0 ? '+' : ''}{scoreDelta} pts
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+              {techScoreData.length >= 2 && (
+                <ResponsiveContainer width="100%" height={140}>
+                  <LineChart data={techScoreData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#111827" />
+                    <XAxis dataKey="date" tick={{ fill: '#4b5563', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 100]} tick={{ fill: '#4b5563', fontSize: 10 }} width={28} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
+                    <Tooltip {...tooltipStyle} formatter={(v: unknown) => [`${v} / 100`, 'Índice Técnico']} />
+                    <Line
+                      type="monotone" dataKey="score" stroke="#22d3ee" strokeWidth={2.5}
+                      dot={{ fill: '#22d3ee', r: 4, strokeWidth: 0 }}
+                      activeDot={{ r: 6, fill: '#67e8f9' }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {/* Mini-charts individuais */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {TECH_METRICS.map(({ key, label, unit, color, desc }) => {
               const pts = swimMetrics
                 .filter(m => m[key] != null)
@@ -652,8 +722,10 @@ export default function Treinador() {
                   <p className="text-gray-600 text-xs">Sem dados suficientes</p>
                 </div>
               )
-              const latest = pts.at(-1)!.value
-              const delta  = latest - pts[0].value
+              const latest         = pts.at(-1)!.value
+              const delta          = latest - pts[0].value
+              const higherIsBetter = TECH_SCORING[key]?.higherIsBetter ?? false
+              const improved       = higherIsBetter ? delta > 0 : delta < 0
               return (
                 <div key={key} className="bg-gray-800/30 border border-gray-800 rounded-xl p-4">
                   <div className="flex items-start justify-between mb-2">
@@ -666,7 +738,7 @@ export default function Treinador() {
                         {latest} {unit}
                       </p>
                       {delta !== 0 && (
-                        <p className={`text-xs mt-0.5 ${delta < 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        <p className={`text-xs mt-0.5 ${improved ? 'text-green-400' : 'text-red-400'}`}>
                           {delta > 0 ? '+' : ''}{delta.toFixed(key === 'underwater_dist_wall_m' ? 1 : 0)}
                         </p>
                       )}
@@ -698,7 +770,9 @@ export default function Treinador() {
               )
             })}
           </div>
-        )}
+          </div>
+          )
+        })()}
       </div>
 
       {/* AI Coach */}
