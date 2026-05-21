@@ -429,7 +429,7 @@ export default function Treino() {
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-gray-500 text-xs font-medium">Série {formSetIdx}</p>
                     {lastForSet && (
-                      <p className="text-cyan-700 text-xs">
+                      <p className="text-cyan-500 text-xs">
                         Última vez:
                         {lastForSet.weight && ` ${lastForSet.weight}kg`}
                         {lastForSet.weight && lastForSet.reps && ' ·'}
