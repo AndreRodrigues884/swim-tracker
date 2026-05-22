@@ -65,11 +65,11 @@ const WORKOUTS: WDay[] = [
   {
     key: 'pernas', label: 'Pernas & Potência', days: 'Qui',
     exercises: [
-      { id: 'squat',   name: 'Agachamento curl bar',     sets: 6, reps: '5',  has_weight: true  },
+      { id: 'squat',   name: 'Agachamento curl bar',     sets: 5, reps: '5',  has_weight: true  },
       { id: 'rdl',     name: 'Romanian deadlift curl bar', sets: 5, reps: '8', has_weight: true },
-      { id: 'bjump',   name: 'Broad jump',               sets: 6, reps: '5',  has_weight: false },
+      { id: 'bjump',   name: 'Broad jump',               sets: 5, reps: '5',  has_weight: false },
       { id: 'calfs',   name: 'Calf raises curl bar',     sets: 4, reps: '20', has_weight: true  },
-      { id: 'hip-thr', name: 'Hip thrust',               sets: 4, reps: '15', has_weight: true  },
+      { id: 'hip-thr', name: 'Hip thrust',               sets: 3, reps: '15', has_weight: true  },
     ],
   },
   {
