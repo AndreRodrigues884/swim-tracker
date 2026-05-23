@@ -4,9 +4,9 @@ import { supabase } from '../lib/supabase'
 type Diff = 'easy' | 'medium' | 'hard'
 
 const D: Record<Diff, { label: string; short: string; cls: string }> = {
-  easy:   { label: 'Fácil',   short: 'F', cls: 'bg-green-500/20  text-green-400  border-green-500/30' },
-  medium: { label: 'Médio',   short: 'M', cls: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
-  hard:   { label: 'Difícil', short: 'D', cls: 'bg-red-500/20    text-red-400    border-red-500/30' },
+  easy: { label: 'Fácil', short: 'F', cls: 'bg-green-500/20  text-green-400  border-green-500/30' },
+  medium: { label: 'Médio', short: 'M', cls: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
+  hard: { label: 'Difícil', short: 'D', cls: 'bg-red-500/20    text-red-400    border-red-500/30' },
 }
 
 const TO_STATUS: Record<Diff, 'done' | 'skipped' | 'failed'> = {
@@ -16,31 +16,31 @@ const TO_STATUS: Record<Diff, 'done' | 'skipped' | 'failed'> = {
 interface Ex { id: string; name: string; sets: number; reps: string; has_weight: boolean }
 
 const CORE_EX: Ex[] = [
-  { id: 'along-antebr', name: 'Alongamento antebraço',       sets: 3, reps: '30s',  has_weight: false },
-  { id: 'along-pe',     name: 'Alongamento peito do pé',     sets: 3, reps: '40s',  has_weight: false },
-  { id: 'rolling-hbr',  name: 'Rolling Hollow Body Rocks',   sets: 3, reps: '10',   has_weight: false },
-  { id: 'rot-ombro',    name: 'Rotações externas ombro',     sets: 4, reps: '15',   has_weight: true  },
-  { id: 'hollow',       name: 'Hollow body hold',            sets: 4, reps: '35s',  has_weight: true  },
-  { id: 'obliquos',     name: 'Oblíquos com halter',         sets: 3, reps: '15',   has_weight: true  },
-  { id: 'prancha',      name: 'Prancha',                     sets: 3, reps: '1min', has_weight: false },
-  { id: 'ab-crunch',    name: 'Ab crunchs no banco',         sets: 3, reps: '15',   has_weight: true  },
+  { id: 'along-antebr', name: 'Alongamento antebraço', sets: 3, reps: '30s', has_weight: false },
+  { id: 'along-pe', name: 'Alongamento peito do pé', sets: 3, reps: '40s', has_weight: false },
+  { id: 'rolling-hbr', name: 'Rolling Hollow Body Rocks', sets: 3, reps: '10', has_weight: false },
+  { id: 'rot-ombro', name: 'Rotações externas ombro', sets: 4, reps: '15', has_weight: true },
+  { id: 'hollow', name: 'Hollow body hold', sets: 4, reps: '35s', has_weight: true },
+  { id: 'obliquos', name: 'Oblíquos com halter', sets: 3, reps: '15', has_weight: true },
+  { id: 'ab-roller-wheel', name: 'AB Roller Wheel', sets: 3, reps: '10', has_weight: false },
+  { id: 'ab-crunch', name: 'Ab crunchs no banco', sets: 3, reps: '15', has_weight: true },
 ]
 
 export default function Core() {
-  const [sets,    setSets]    = useState<Record<string, Diff>>({})
+  const [sets, setSets] = useState<Record<string, Diff>>({})
   const [weights, setWeights] = useState<Record<string, string>>({})
-  const [saving,  setSaving]  = useState(false)
-  const [saved,   setSaved]   = useState(false)
-  const [error,   setError]   = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const totalSets = CORE_EX.reduce((s, e) => s + e.sets, 0)
-  const doneSets  = Object.keys(sets).length
+  const doneSets = Object.keys(sets).length
 
   function cycleSet(key: string) {
     setSets(prev => {
       const cur = prev[key]
-      if (!cur)             return { ...prev, [key]: 'easy' }
-      if (cur === 'easy')   return { ...prev, [key]: 'medium' }
+      if (!cur) return { ...prev, [key]: 'easy' }
+      if (cur === 'easy') return { ...prev, [key]: 'medium' }
       if (cur === 'medium') return { ...prev, [key]: 'hard' }
       const next = { ...prev }
       delete next[key]
@@ -55,8 +55,8 @@ export default function Core() {
     const { data: session, error: sErr } = await supabase
       .from('workout_sessions')
       .insert({
-        date:      new Date().toISOString().split('T')[0],
-        day_type:  'core',
+        date: new Date().toISOString().split('T')[0],
+        day_type: 'core',
         difficulty: 5,
       })
       .select()
@@ -72,10 +72,10 @@ export default function Core() {
       const logs = Object.entries(sets).map(([key, diff]) => {
         const sep = key.lastIndexOf('|||')
         return {
-          session_id:  session.id,
+          session_id: session.id,
           exercise_id: key.slice(0, sep),
-          set_number:  parseInt(key.slice(sep + 3)) + 1,
-          status:      TO_STATUS[diff],
+          set_number: parseInt(key.slice(sep + 3)) + 1,
+          status: TO_STATUS[diff],
         }
       })
       await supabase.from('set_logs').insert(logs)
@@ -118,7 +118,7 @@ export default function Core() {
       {/* Exercises */}
       <div className="space-y-3">
         {CORE_EX.map(ex => {
-          const keys      = Array.from({ length: ex.sets }, (_, i) => `${ex.id}|||${i}`)
+          const keys = Array.from({ length: ex.sets }, (_, i) => `${ex.id}|||${i}`)
           const doneCount = keys.filter(k => sets[k]).length
           return (
             <div key={ex.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
@@ -154,11 +154,10 @@ export default function Core() {
                     <button
                       key={key}
                       onClick={() => cycleSet(key)}
-                      className={`w-10 h-10 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
-                        s
+                      className={`w-10 h-10 rounded-lg border text-xs font-bold transition-all cursor-pointer ${s
                           ? D[s].cls
                           : 'bg-gray-800 text-gray-500 border-gray-700 hover:border-gray-500 hover:text-gray-300'
-                      }`}
+                        }`}
                     >
                       {s ? D[s].short : i + 1}
                     </button>
