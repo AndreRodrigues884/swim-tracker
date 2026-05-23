@@ -117,28 +117,38 @@ export default function Treino() {
     async function load() {
       const { data: sessions } = await supabase
         .from('workout_sessions')
-        .select('id')
+        .select('id, date')
         .eq('day_type', workout.key)
         .order('date', { ascending: false })
-        .limit(1)
+        .limit(10)
 
       if (!sessions?.length) return
 
       const { data: logs } = await supabase
         .from('set_logs')
-        .select('exercise_id, set_number, weight_kg, reps_done')
-        .eq('session_id', sessions[0].id)
+        .select('exercise_id, set_number, weight_kg, reps_done, session_id')
+        .in('session_id', sessions.map(s => s.id))
 
-      if (!logs) return
+      if (!logs?.length) return
+
+      const sessionDateMap: Record<string, string> = {}
+      for (const s of sessions) sessionDateMap[s.id] = s.date
+
+      // Sort by session date descending so the first entry per key is the most recent
+      const sorted = [...logs].sort((a, b) =>
+        (sessionDateMap[b.session_id] ?? '').localeCompare(sessionDateMap[a.session_id] ?? '')
+      )
 
       const map: Record<string, LastEntry> = {}
-      for (const log of logs) {
+      for (const log of sorted) {
         if (!exIds.includes(log.exercise_id)) continue
-        // key matches the app's format: exerciseId|||setIndex (0-based)
+        if (log.weight_kg == null && log.reps_done == null) continue
         const key = `${log.exercise_id}|||${log.set_number - 1}`
-        map[key] = {
-          weight: log.weight_kg != null ? String(log.weight_kg) : null,
-          reps:   log.reps_done  != null ? String(log.reps_done)  : null,
+        if (!map[key]) {
+          map[key] = {
+            weight: log.weight_kg != null ? String(log.weight_kg) : null,
+            reps:   log.reps_done  != null ? String(log.reps_done)  : null,
+          }
         }
       }
       setLastSetData(map)
