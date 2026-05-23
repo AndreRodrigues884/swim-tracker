@@ -21,7 +21,7 @@ const CORE_EX: Ex[] = [
   { id: 'rot-ombro', name: 'Rotações externas ombro', sets: 4, reps: '20', has_weight: false },
   { id: 'rolling-hbr', name: 'Rolling Hollow Body Rocks', sets: 3, reps: '15', has_weight: false },
   { id: 'hollow', name: 'Hollow body hold', sets: 4, reps: '40s', has_weight: true },
-  { id: 'ab-roller-wheel', name: 'AB Roller Wheel', sets: 3, reps: '10', has_weight: false },
+  { id: 'ab-roller-wheel', name: 'AB Roller Wheel', sets: 3, reps: '6', has_weight: false },
   { id: 'ab-crunch', name: 'Ab crunchs no banco', sets: 3, reps: '15', has_weight: true },
   { id: 'obliquos', name: 'Oblíquos com halter', sets: 3, reps: '15', has_weight: true },
 ]
