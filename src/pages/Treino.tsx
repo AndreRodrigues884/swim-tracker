@@ -50,6 +50,7 @@ export default function Treino() {
   const [saving,       setSaving]       = useState(false)
   const [saved,        setSaved]        = useState(false)
   const [error,        setError]        = useState<string | null>(null)
+  const [chartVersion, setChartVersion] = useState(0)
 
   const workout   = WORKOUTS[activeIdx]
   const doneSets  = Object.keys(setData).length
@@ -162,7 +163,7 @@ export default function Treino() {
       }))
     }
     loadChart()
-  }, [activeIdx])
+  }, [activeIdx, chartVersion])
 
   function confirmSet(key: string) {
     if (!draft.diff) return
@@ -231,6 +232,7 @@ export default function Treino() {
     setExpandedKey(null)
     setSaving(false)
     setSaved(true)
+    setChartVersion(v => v + 1)
     setTimeout(() => setSaved(false), 3000)
   }
 
