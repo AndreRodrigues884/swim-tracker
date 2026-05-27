@@ -29,12 +29,11 @@ const tooltipStyle = {
 }
 
 const ORM_EXERCISES = [
-  { id: 'pu-w',    label: 'Pull-ups'   },
-  { id: 'dips-w',  label: 'Dips'       },
-  { id: 'press-m', label: 'Press'      },
-  { id: 'squat',   label: 'Agacha.'    },
-  { id: 'rdl',     label: 'RDL'        },
-  { id: 'hip-thr', label: 'Hip thrust' },
+  { id: 'pu-w',    label: 'Pull-ups'  },
+  { id: 'dips-w',  label: 'Dips'      },
+  { id: 'press-m', label: 'Press'     },
+  { id: 'bb-curl', label: 'BB Curl'   },
+  { id: 'tri-ext', label: 'Tri. Ext.' },
 ]
 
 const MUSCLE_GROUPS = ['costas-peito', 'ombros', 'pernas', 'bic-tri', 'core'] as const
