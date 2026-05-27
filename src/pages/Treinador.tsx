@@ -8,7 +8,7 @@ import {
   TECH_METRICS, TECH_SCORING, GROUPS, TREND_STYLE,
   metricScore, emptyForm,
 } from '../data/techMetrics'
-import type { SwimTime, Session, Progression, Note, SwimMetric, SwimMetricRow, Trend, MetricKey, MetricForm } from '../data/techMetrics'
+import type { SwimTime, Session, Progression, Note, SwimMetric, SwimMetricRow, MetricForm } from '../data/techMetrics'
 import { weeklyRate, etaFromRate, avgSessionsPerWeek, trendStatus, buildPrompt } from '../lib/swimAnalytics'
 
 const tooltipStyle = {
