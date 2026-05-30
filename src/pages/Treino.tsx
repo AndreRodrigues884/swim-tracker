@@ -134,7 +134,6 @@ export default function Treino() {
           .from('set_logs')
           .select('exercise_id, weight_kg, reps_done, session_id')
           .in('exercise_id', allExIds)
-          .gt('weight_kg', 0)
           .gt('reps_done', 0),
       ])
 
@@ -150,7 +149,9 @@ export default function Treino() {
           if (!groupExIds.has(log.exercise_id)) continue
           const date = sesMap[log.session_id]
           if (!date) continue
-          dateMap[date] = (dateMap[date] ?? 0) + (log.weight_kg ?? 0) * (log.reps_done ?? 0)
+          const w = log.weight_kg ?? 0
+          const r = log.reps_done ?? 0
+          dateMap[date] = (dateMap[date] ?? 0) + (w > 0 ? w * r : r)
         }
         const pts = Object.entries(dateMap)
           .sort(([a], [b]) => a.localeCompare(b))
@@ -303,7 +304,7 @@ export default function Treino() {
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <p className="text-white text-sm font-semibold">Progresso — {label}</p>
-                  <p className="text-gray-600 text-xs mt-0.5">Volume por sessão (kg × reps) · {pts.length} sessões</p>
+                  <p className="text-gray-600 text-xs mt-0.5">Volume por sessão (kg×reps ou só reps se sem peso) · {pts.length} sessões</p>
                 </div>
                 <span className={`text-xs font-semibold ${trend.cls}`}>{trend.label}</span>
               </div>
@@ -320,7 +321,7 @@ export default function Treino() {
                   <Tooltip
                     contentStyle={{ background: '#0d1117', border: '1px solid #1f2937', borderRadius: 8, fontSize: 12 }}
                     labelStyle={{ color: '#6b7280' }}
-                    formatter={(v) => [`${Number(v).toLocaleString('pt-PT')} kg·reps`, 'Volume']}
+                    formatter={(v) => [`${Number(v).toLocaleString('pt-PT')}`, 'Volume']}
                   />
                   <Line type="monotone" dataKey="vol" stroke="#22d3ee" strokeWidth={2}
                     dot={{ fill: '#22d3ee', r: 3, strokeWidth: 0 }}
