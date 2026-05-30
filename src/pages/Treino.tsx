@@ -304,7 +304,7 @@ export default function Treino() {
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <p className="text-white text-sm font-semibold">Progresso — {label}</p>
-                  <p className="text-gray-600 text-xs mt-0.5">Volume por sessão (kg×reps ou só reps se sem peso) · {pts.length} sessões</p>
+                  <p className="text-gray-600 text-xs mt-0.5">Volume por sessão · {pts.length} sessões</p>
                 </div>
                 <span className={`text-xs font-semibold ${trend.cls}`}>{trend.label}</span>
               </div>
