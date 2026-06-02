@@ -7,10 +7,14 @@ import { supabase } from './lib/supabase'
 // Auto-login silently — session persists in localStorage after first login
 const { data: { session } } = await supabase.auth.getSession()
 if (!session) {
-  await supabase.auth.signInWithPassword({
+  const { error } = await supabase.auth.signInWithPassword({
     email:    import.meta.env.VITE_SUPABASE_EMAIL,
     password: import.meta.env.VITE_SUPABASE_PASSWORD,
   })
+  if (error) console.error('[auth] login failed:', error.message)
+  else console.log('[auth] logged in successfully')
+} else {
+  console.log('[auth] session restored from cache')
 }
 
 createRoot(document.getElementById('root')!).render(
