@@ -6,10 +6,10 @@ export const WORKOUTS: WDay[] = [
   {
     key: 'costas-peito', label: 'Costas & Peito', days: 'Ter / Sáb',
     exercises: [
-      { id: 'pu-w',   name: 'Pull-ups com peso',       sets: 6, reps: '5',  has_weight: true  },
+      { id: 'pu-w',   name: 'Pull-ups com peso',       sets: 5, reps: '5',  has_weight: true  },
       { id: 'pu-n',   name: 'Pull-ups normais',         sets: 4, reps: '10', has_weight: true  },
       { id: 'cu-w',   name: 'Chin-ups com peso',        sets: 3, reps: '8',  has_weight: true  },
-      { id: 'dips-w', name: 'Dips com peso',            sets: 6, reps: '5',  has_weight: true  },
+      { id: 'dips-w', name: 'Dips com peso',            sets: 5, reps: '5',  has_weight: true  },
       { id: 'dips-n', name: 'Dips normais',             sets: 4, reps: '12', has_weight: true  },
     ],
     chartGroups: [
@@ -20,7 +20,7 @@ export const WORKOUTS: WDay[] = [
   {
     key: 'ombros', label: 'Ombros', days: 'Qua',
     exercises: [
-      { id: 'press-m', name: 'Press militar curl bar',  sets: 6, reps: '5',  has_weight: true },
+      { id: 'press-m', name: 'Press militar curl bar',  sets: 5, reps: '5',  has_weight: true },
       { id: 'arnold',  name: 'Arnold press',            sets: 4, reps: '10', has_weight: true },
       { id: 'lat-r',   name: 'Elevações laterais',      sets: 4, reps: '15', has_weight: true },
       { id: 'upright', name: 'Upright rows curl bar',   sets: 3, reps: '12', has_weight: true },
