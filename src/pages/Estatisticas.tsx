@@ -4,6 +4,7 @@ import {
   ResponsiveContainer, BarChart, Bar,
 } from 'recharts'
 import { supabase } from '../lib/supabase'
+import { WORKOUTS } from '../data/workouts'
 
 interface WSession  { id: string; date: string; day_type: string }
 interface SetLog    { exercise_id: string; weight_kg: number; reps_done: number; session_id: string }
@@ -152,20 +153,31 @@ export default function Estatisticas() {
     .map(([week, types]) => ({ week: week.slice(5), ...types }))
 
   // ── Deload detection ───────────────────────────────────────────────────
+  const allExDefs = WORKOUTS.flatMap(w => w.exercises)
+
+  interface StagnatingEx { name: string; currentLoad: number; deloadLoad: number; sets: number; reps: string }
+
   const progByExDate: Record<string, Record<string, number>> = {}
   for (const p of progData) {
     if (!progByExDate[p.exercise]) progByExDate[p.exercise] = {}
     const cur = progByExDate[p.exercise][p.date] ?? 0
     progByExDate[p.exercise][p.date] = Math.max(cur, p.load_kg)
   }
-  const stagnating: string[] = []
+  const stagnating: StagnatingEx[] = []
   for (const [exercise, dateMap] of Object.entries(progByExDate)) {
     const loads = Object.entries(dateMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([, v]) => v)
     if (loads.length < 3) continue
     const last3 = loads.slice(-3)
-    if (Math.max(...last3) <= last3[0]) stagnating.push(exercise)
+    if (Math.max(...last3) > last3[0]) continue
+    const currentLoad = last3[last3.length - 1]
+    const rawDeload   = currentLoad * 0.6
+    const deloadLoad  = Math.max(2.5, Math.round(rawDeload / 2.5) * 2.5)
+    const exDef       = allExDefs.find(e => e.name === exercise)
+    const sets        = exDef ? Math.max(2, Math.round(exDef.sets * 0.6)) : 3
+    const reps        = exDef?.reps ?? '8'
+    stagnating.push({ name: exercise, currentLoad, deloadLoad, sets, reps })
   }
 
   return (
@@ -353,12 +365,21 @@ export default function Estatisticas() {
         ) : (
           <div className="space-y-2">
             <p className="text-amber-400 text-sm font-medium mb-2">
-              {stagnating.length} exercício{stagnating.length !== 1 ? 's' : ''} em plateau — considera uma semana de deload
+              {stagnating.length} exercício{stagnating.length !== 1 ? 's' : ''} em plateau — semana de deload recomendada
             </p>
             {stagnating.map(ex => (
-              <div key={ex} className="flex items-center gap-2 bg-amber-500/5 border border-amber-500/15 rounded-lg px-3 py-2.5">
-                <span className="text-amber-500 text-xs shrink-0">⚠</span>
-                <span className="text-gray-300 text-sm">{ex}</span>
+              <div key={ex.name} className="bg-amber-500/5 border border-amber-500/15 rounded-lg px-3 py-3">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-amber-500 text-xs shrink-0">⚠</span>
+                  <span className="text-gray-200 text-sm font-medium">{ex.name}</span>
+                </div>
+                <p className="text-gray-500 text-xs pl-5">
+                  Atual: <span className="text-gray-400 font-mono">{ex.currentLoad}kg</span>
+                  {' '}→ deload:{' '}
+                  <span className="text-amber-400 font-mono font-semibold">{ex.sets} séries × {ex.reps} reps</span>
+                  {' '}a{' '}
+                  <span className="text-amber-300 font-mono font-semibold">{ex.deloadLoad}kg</span>
+                </p>
               </div>
             ))}
           </div>

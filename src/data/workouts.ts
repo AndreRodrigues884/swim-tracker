@@ -45,8 +45,7 @@ export const WORKOUTS: WDay[] = [
       { id: 'skull',     name: 'Skull crushers curl bar',     sets: 4, reps: '10', has_weight: true },
       { id: 'tri-ext',   name: 'Tricep extensions curl bar',  sets: 4, reps: '12', has_weight: true },
       { id: 'oh-tri',    name: 'Overhead unilateral tricep ext', sets: 3, reps: '12', has_weight: true },
-      { id: 'wrist',     name: 'Wrist curls curl bar',        sets: 4, reps: '15', has_weight: true },
-      { id: 'rev-wrist', name: 'Reverse wrist curls',         sets: 3, reps: '15', has_weight: true },
+
     ],
     chartGroups: [
       { label: 'Bíceps',  exerciseIds: ['bb-curl', 'hammer', 'conc']    },
