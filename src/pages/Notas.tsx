@@ -1,13 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-
-interface Note {
-  id: string
-  date: string
-  type: string
-  content: string
-  created_at: string
-}
+import type { Note } from '../interfaces/notes'
 
 // schema check: ('geral','tecnica','nutricao','recuperacao') → mapped from display labels
 const TYPES = [

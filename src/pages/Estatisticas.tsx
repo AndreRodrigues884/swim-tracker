@@ -5,10 +5,9 @@ import {
 } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { WORKOUTS } from '../data/workouts'
+import type { WSession, SetLog, Prog } from '../interfaces/stats'
 
-interface WSession  { id: string; date: string; day_type: string }
-interface SetLog    { exercise_id: string; weight_kg: number; reps_done: number; session_id: string }
-interface Prog      { date: string; exercise: string; load_kg: number }
+interface OrmLog { exercise_id: string; weight_kg: number; reps_done: number; workout_sessions: { date: string } }
 
 function getMondayKey(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00')
@@ -65,17 +64,17 @@ export default function Estatisticas() {
     Promise.all([
       supabase.from('workout_sessions').select('id, date, day_type').order('date'),
       supabase.from('set_logs')
-        .select('exercise_id, weight_kg, reps_done, session_id')
+        .select('exercise_id, weight_kg, reps_done, workout_sessions!inner(date)')
         .in('exercise_id', ormIds)
         .gt('weight_kg', 0)
-        .gt('reps_done', 0),
+        .gt('reps_done', 0)
+        .limit(5000),
       supabase.from('progressions').select('date, exercise, load_kg').order('date'),
     ]).then(([sess, logs, pgrs]) => {
       if (sess.data) setSessions(sess.data)
       if (logs.data) {
-        const logData = logs.data as SetLog[]
-        setSetLogs(logData)
-        // Auto-select the first exercise that actually has logged data
+        const logData = logs.data as unknown as OrmLog[]
+        setSetLogs(logData as unknown as SetLog[])
         const firstWithData = ORM_EXERCISES.find(e => logData.some(l => l.exercise_id === e.id))
         if (firstWithData) setSelectedOrmEx(firstWithData.id)
       }
@@ -97,12 +96,9 @@ export default function Estatisticas() {
     : null
 
   // ── 1RM (Epley: weight × (1 + reps/30)) ───────────────────────────────
-  const sessionDateMap: Record<string, string> = {}
-  for (const s of sessions) sessionDateMap[s.id] = s.date
-
   const ormByExDate: Record<string, Record<string, number>> = {}
-  for (const log of setLogs) {
-    const date = sessionDateMap[log.session_id]
+  for (const log of setLogs as unknown as OrmLog[]) {
+    const date = log.workout_sessions?.date
     if (!date) continue
     const orm = log.weight_kg * (1 + log.reps_done / 30)
     if (!ormByExDate[log.exercise_id]) ormByExDate[log.exercise_id] = {}

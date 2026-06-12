@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-
-type Diff = 'easy' | 'medium' | 'hard'
+import type { Ex, Diff } from '../interfaces/workout'
 
 const D: Record<Diff, { label: string; short: string; cls: string }> = {
   easy: { label: 'Fácil', short: 'F', cls: 'bg-green-500/20  text-green-400  border-green-500/30' },
@@ -12,8 +11,6 @@ const D: Record<Diff, { label: string; short: string; cls: string }> = {
 const TO_STATUS: Record<Diff, 'done' | 'skipped' | 'failed'> = {
   easy: 'done', medium: 'skipped', hard: 'failed',
 }
-
-interface Ex { id: string; name: string; sets: number; reps: string; has_weight: boolean }
 
 const CORE_EX: Ex[] = [
   { id: 'along-antebr', name: 'Alongamento antebraço', sets: 3, reps: '30s', has_weight: false },

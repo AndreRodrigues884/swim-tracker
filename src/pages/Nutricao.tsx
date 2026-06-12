@@ -1,10 +1,4 @@
-interface Meal {
-  name: string
-  kcal: number
-  foods: string[]
-  note?: string
-  highlight?: 'pre' | 'post'
-}
+import type { Meal } from '../interfaces/nutrition'
 
 const MEALS: Meal[] = [
   {

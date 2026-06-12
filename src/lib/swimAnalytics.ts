@@ -1,4 +1,5 @@
-import type { SwimTime, Session, Progression, Note, SwimMetric, Trend } from '../data/techMetrics'
+import type { SwimTime, Session, Progression, SwimMetric, Trend } from '../interfaces/swim'
+import type { Note } from '../interfaces/notes'
 
 const GOAL       = 12.0
 const START_TIME = 13.90

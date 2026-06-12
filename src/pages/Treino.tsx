@@ -5,17 +5,7 @@ import {
 } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { WORKOUTS } from '../data/workouts'
-import type { ChartGroup } from '../data/workouts'
-
-type Diff     = 'easy' | 'medium' | 'hard'
-type ExecType = 'continuous' | 'mini_pause' | 'rest_pause'
-
-interface SetEntry {
-  diff:     Diff
-  weight:   string   // empty = bodyweight / sem peso
-  reps:     string
-  execType: ExecType
-}
+import type { ChartGroup, SetEntry, GroupedChart, LastEntry, ChartPt, Diff, ExecType } from '../interfaces/workout'
 
 const D_CFG: Record<Diff, { label: string; cls: string }> = {
   easy:   { label: 'Fácil',   cls: 'bg-green-500/20  text-green-400  border-green-500/30'  },
@@ -32,10 +22,6 @@ const EXEC_OPTS: { value: ExecType; label: string }[] = [
   { value: 'mini_pause', label: 'Mini-pausa' },
   { value: 'rest_pause', label: 'Rest-pause' },
 ]
-
-interface GroupedChart { label: string; pts: ChartPt[] }
-interface LastEntry    { weight: string | null; reps: string | null }
-interface ChartPt      { date: string; vol: number }
 
 const DAY_MAP: Record<number, number> = { 2: 0, 3: 1, 4: 2, 5: 3, 6: 0 }
 const defaultIdx = DAY_MAP[new Date().getDay()] ?? 0

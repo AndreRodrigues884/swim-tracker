@@ -4,14 +4,7 @@ import {
   ReferenceLine, ResponsiveContainer,
 } from 'recharts'
 import { supabase } from '../lib/supabase'
-
-interface SwimTime {
-  id: string
-  date: string
-  time_seconds: number
-  location: string | null
-  created_at: string
-}
+import type { SwimTimeRow as SwimTime } from '../interfaces/swim'
 
 const GOAL = 12.00
 
