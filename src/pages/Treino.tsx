@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { WORKOUTS } from '../data/workouts'
-import type { ChartGroup, SetEntry, GroupedChart, LastEntry, ChartPt, Diff, ExecType } from '../interfaces/workout'
+import type { ChartGroup, SetEntry, GroupedChart, LastEntry, Diff, ExecType } from '../interfaces/workout'
 
 const D_CFG: Record<Diff, { label: string; cls: string }> = {
   easy:   { label: 'Fácil',   cls: 'bg-green-500/20  text-green-400  border-green-500/30'  },
